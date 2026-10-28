@@ -245,7 +245,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.5.0',
+  VERSAO: '1.6.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -380,7 +380,13 @@ const chip = (t, txt) => `<span class="chip ${t}">${esc(txt)}</span>`;
 const titAbast = a => a.numero || (a.fila && !a.erro && navigator.onLine ? 'Enviando…' : 'Na fila');
 
 /** Alerta gravado pelo servidor (regras de leitura e duplicidade); sem ele, a análise feita aqui no app. */
-function textoAlerta(a){ if(a.alerta) return a.alerta; const an = analise(a); return an && an.tipo === 'alerta' ? an.tit : ''; }
+function textoAlerta(a){
+  const partes = [];
+  if(a.falta) partes.push('Sem Km: ' + a.falta);
+  if(a.alerta) partes.push(a.alerta);
+  else { const an = analise(a); if(an && an.tipo === 'alerta') partes.push(an.tit); }
+  return partes.join(' · ');
+}
 function analise(a){
   if(!a.placa) return null;
   const nm = nomeMed(a.tipoLeitura), un = unMed(a.tipoLeitura);
@@ -1118,6 +1124,7 @@ VIEWS['c-det'] = {
     const [t, s] = stAbast(a), an = analise(a), nm = nomeMed(a.tipoLeitura);
     return `<button class="voltar" data-go="c-abast">‹ Conferir</button>
       <div class="cab"><h1 class="tit" style="font-family:var(--f-num);font-size:26px">${esc(a.numero)}</h1>${chip(t, s)}</div>
+      ${a.falta ? `<div class="analise alerta"><strong>⚠ Leitura do Km não realizada</strong><span>${esc(a.falta)}</span><span class="nums">Abra a foto, digite o Km conferido abaixo e marque Conferido. O relatório espera por isso.</span></div>` : ''}
       ${a.alerta ? `<div class="analise alerta"><strong>⚠ Alerta para tratar</strong><span>${esc(a.alerta)}</span><span class="nums">Confira a foto, corrija o valor conferido se precisar e marque Conferido ou Divergência.</span></div>` : ''}
       ${dadosAbast(a, true)}
       ${an ? `<div class="analise ${an.tipo}"><strong>${esc(an.tit)}</strong><span>${esc(an.txt)}</span>${an.nums ? `<span class="nums">${esc(an.nums)}</span>` : ''}</div>` : ''}
