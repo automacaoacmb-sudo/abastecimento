@@ -235,7 +235,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.0.0',
+  VERSAO: '1.1.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -309,19 +309,29 @@ const fila = (() => {
     async tirar(k){ try { await tx('readwrite', s => s.delete(k)); } catch(e){} memoria.delete(k); }
   };
 })();
-let enviandoFila = false;
+let enviandoFila = false, filaDeNovo = false, COMPROV = null;
 async function processarFila(){
-  if(enviandoFila || !navigator.onLine) return;
-  enviandoFila = true; let enviados = 0;
+  if(!navigator.onLine) return;
+  if(enviandoFila){ filaDeNovo = true; return; }
+  enviandoFila = true; const enviados = [];
   try {
     for(const it of await fila.todos()){
       if(it.erro) continue;
-      try { const rec = await api('registrarAbastecimento', {pin: it.pin, reg: it.reg}); await fila.tirar(it.idApp); guardarMeu(rec); enviados++; }
-      catch(e){ if(e.rede) break; it.erro = e.message; await fila.por(it); }
+      try {
+        const rec = await api('registrarAbastecimento', {pin: it.pin, reg: it.reg});
+        await fila.tirar(it.idApp); guardarMeu(rec); enviados.push(rec);
+        if(COMPROV === it.idApp) abrirComprovante(rec);
+      } catch(e){
+        if(e.rede) break;
+        it.erro = e.message; await fila.por(it);
+        toast(`Lançamento não aceito: ${e.message}`, 'bad');
+        if(COMPROV === it.idApp) abrirComprovante(deFila(it));
+      }
     }
   } finally {
     enviandoFila = false; await avisoFila();
-    if(enviados){ toast(`${enviados} lançamento(s) enviado(s).`); if(VIEW === 'm-lista') render(); }
+    if(enviados.length){ toast(enviados.length === 1 ? `${enviados[0].numero} registrado.` : `${enviados.length} lançamentos enviados.`); if(VIEW === 'm-lista') render(); }
+    if(filaDeNovo){ filaDeNovo = false; processarFila(); }
   }
 }
 async function avisoFila(){
@@ -345,7 +355,7 @@ function deFila(it){
 
 /* ===================== Status ===================== */
 function stAbast(a){
-  if(a.fila) return a.erro ? ['bad', 'Não enviado'] : ['warn', 'Na fila · sem internet'];
+  if(a.fila) return a.erro ? ['bad', 'Não enviado'] : navigator.onLine ? ['info', 'Enviando…'] : ['warn', 'Na fila · sem internet'];
   if(a.aprovacao === 'Recusado') return ['bad', 'Recusado'];
   if(a.aprovacao === 'Aguardando aprovação') return ['warn', 'Aguardando aprovação'];
   if(a.conferencia === 'Conferido') return ['ok', 'Conferido'];
@@ -357,7 +367,7 @@ function stAut(a){
   return [s === 'Retirada confirmada' ? 'ok' : s === 'Aguardando retirada' ? 'warn' : 'bad', s];
 }
 const chip = (t, txt) => `<span class="chip ${t}">${esc(txt)}</span>`;
-const titAbast = a => a.numero || 'Na fila';
+const titAbast = a => a.numero || (a.fila && !a.erro && navigator.onLine ? 'Enviando…' : 'Na fila');
 
 function analise(a){
   if(!a.placa) return null;
@@ -413,30 +423,46 @@ function topo(){
   } else tb.hidden = true;
   avisoFila();
 }
+/* Telas com lista: mostram na hora o que está salvo no celular e atualizam em segundo plano. */
+const digitando = m => { const a = document.activeElement; return !$('#sheet').hidden || (a && m.contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName)); };
 async function render(){
   const id = ++RID, V = VIEWS[VIEW], m = $('#main');
   topo();
-  let D = null;
+  const pintar = D => { if(id !== RID) return; m.onclick = null; m.innerHTML = V.html(D); if(V.bind) V.bind(m, D); topo(); };
+  const erroTela = e => { if(id !== RID) return;
+    m.innerHTML = `<div class="vazio">${esc(e.message)}<br><br><button class="btn btn-sec" id="tentar">Tentar de novo</button></div>`;
+    $('#tentar', m).onclick = () => render(); };
+  if(V.buscar){
+    const prep = async bruto => V.preparar ? V.preparar(bruto) : bruto;
+    const salvo = S.cache[V.chave];
+    if(salvo !== undefined){
+      pintar(await prep(salvo));
+      V.buscar().then(async novo => {
+        if(id !== RID) return;
+        const mudou = JSON.stringify(novo) !== JSON.stringify(S.cache[V.chave]);
+        S.cache[V.chave] = novo; salvarCache();
+        if(mudou && !digitando(m)) pintar(await prep(novo));
+      }).catch(e => { if(id === RID && !e.rede) toast(e.message, 'bad'); });
+      return;
+    }
+    m.innerHTML = '<div class="carregando">Carregando…</div>';
+    try { const novo = await V.buscar(); S.cache[V.chave] = novo; salvarCache(); pintar(await prep(novo)); }
+    catch(e){ erroTela(e); }
+    return;
+  }
   if(V.load){
     m.innerHTML = '<div class="carregando">Carregando…</div>';
-    try { D = await V.load(); }
-    catch(e){
-      if(id !== RID) return;
-      m.innerHTML = `<div class="vazio">${esc(e.message)}<br><br><button class="btn btn-sec" id="tentar">Tentar de novo</button></div>`;
-      $('#tentar', m).onclick = () => render(); return;
-    }
-    if(id !== RID) return;
+    try { pintar(await V.load()); } catch(e){ erroTela(e); }
+    return;
   }
-  m.onclick = null;
-  m.innerHTML = V.html(D); if(V.bind) V.bind(m, D);
-  topo();
+  pintar(null);
 }
 
 /* ===================== Avisos e folhas ===================== */
 let toastT;
 function toast(msg, tipo = ''){ const t = $('#toast'); t.textContent = msg; t.className = tipo; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 4200); }
 function abrirFolha(html, bind){ const b = $('#sheetBody'); b.innerHTML = `<div class="alca"></div>${html}<button class="btn btn-sec btn-bloco" data-fechar>Fechar</button>`; $('#sheet').hidden = false; if(bind) bind(b); }
-function fecharFolha(){ $('#sheet').hidden = true; $('#sheetBody').innerHTML = ''; }
+function fecharFolha(){ $('#sheet').hidden = true; $('#sheetBody').innerHTML = ''; COMPROV = null; }
 function duploToque(btn, acao, txt = 'Toque de novo para confirmar'){
   if(btn.dataset.armado){ acao(); return; }
   const orig = btn.innerHTML; btn.dataset.armado = 1; btn.textContent = txt; btn.classList.add('armado');
@@ -489,9 +515,11 @@ function textoPedido(a){
 }
 function abrirComprovante(a){
   const [t, s] = stAbast(a);
+  COMPROV = a.idApp || null;
   let botoes = '';
   if(a.fila) botoes = a.erro
     ? `<p class="ajuda">O servidor recusou este lançamento. Corrija e lance de novo.</p><button class="btn btn-perigo btn-bloco" id="cpDesc">Descartar este lançamento</button>`
+    : navigator.onLine ? `<p class="ajuda">Já está guardado no celular e sendo enviado. O número aparece aqui em instantes; pode fechar esta tela.</p>`
     : `<p class="ajuda">Está guardado no celular e sobe sozinho quando o sinal voltar. O número sai depois do envio.</p>`;
   else if(a.aprovacao === 'Aguardando aprovação') botoes = `<a class="btn btn-wa btn-bloco" href="${waLink(textoPedido(a))}" target="_blank" rel="noopener">${ICON.wa} Avisar o responsável</a><p class="ajuda">O responsável aprova pelo app. Quando aprovar, o status muda aqui.</p>`;
   else if(a.aprovacao !== 'Recusado') botoes = `<a class="btn btn-wa btn-bloco" href="${waLink(textoAbast(a))}" target="_blank" rel="noopener">${ICON.wa} Enviar pelo WhatsApp</a>
@@ -784,25 +812,20 @@ VIEWS['m-novo'] = {
         tipoLeitura: 'Km', leitura: mv, fotoPainel: F.fotoPainel || '', posto: $('#posto', m).value.trim(), combustivel: $('#comb', m).value,
         litros: $('#litros', m).value.trim(), valor: $('#valor', m).value.trim(), fotoCupom: F.fotoCupom || '', obs: $('#obs', m).value.trim() };
       const item = {idApp: reg.idApp, pin: S.sessao.pin, reg, criadoEm: reg.lancadoEm};
-      await ocupado($('#btEnviar', m), 'Enviando…', async () => {
-        await fila.por(item); // guarda antes de tentar: se o app fechar no meio, não perde
-        try {
-          const rec = await apiPin('registrarAbastecimento', {reg});
-          await fila.tirar(reg.idApp); guardarMeu(rec);
-          go(temPerfil('motorista') ? 'm-lista' : 'm-novo'); abrirComprovante(rec);
-        } catch(er){
-          if(er.rede){ go(temPerfil('motorista') ? 'm-lista' : 'm-novo'); abrirComprovante(deFila(item)); toast('Sem internet: guardado no celular. Envia sozinho quando o sinal voltar.'); }
-          else { await fila.tirar(reg.idApp); toast(er.message, 'bad'); }
-        }
-      });
+      // Guarda no celular e libera o motorista na hora; o envio segue em segundo plano.
+      await ocupado($('#btEnviar', m), 'Salvando…', () => fila.por(item));
+      go(temPerfil('motorista') ? 'm-lista' : 'm-novo');
+      abrirComprovante(deFila(item));
+      if(!navigator.onLine) toast('Sem internet: guardado no celular. Envia sozinho quando o sinal voltar.');
+      processarFila();
     };
   }
 };
 
 VIEWS['m-lista'] = {
-  async load(){
-    await processarFila();
-    const meus = await comCache('meus', () => apiPin('meusLancamentos'));
+  chave: 'meus',
+  buscar: () => apiPin('meusLancamentos'),
+  async preparar(meus){
     const naFila = (await fila.todos()).filter(i => i.pin === S.sessao.pin).map(deFila);
     return {meus, naFila};
   },
@@ -813,7 +836,8 @@ VIEWS['m-lista'] = {
 };
 
 VIEWS['r-aprovar'] = {
-  load: () => comCache('aprov', () => apiPin('pendentesAprovacao')),
+  chave: 'aprov',
+  buscar: () => apiPin('pendentesAprovacao'),
   html: D => `<div class="cab"><h1 class="tit">Aprovar</h1><button class="btn btn-sec btn-mini" data-go="r-aprovar">Atualizar</button></div>
     <section class="painel"><label class="check" for="swAuto"><input type="checkbox" id="swAuto" ${D.aprovAuto ? 'checked' : ''}>
       <span><b>Aprovação automática</b><br><span class="ajuda">${D.aprovAuto ? 'Ligada: todo lançamento já sai aprovado.' : 'Desligada: cada lançamento espera a sua aprovação.'}</span></span></label></section>
@@ -830,18 +854,20 @@ VIEWS['r-aprovar'] = {
     $('#swAuto', m).onchange = async e => {
       const ligada = e.target.checked;
       try { await apiPin('definirAprovacaoAutomatica', {ligada}); S.sessao.config.aprovAuto = ligada; salvarSessao();
+        if(S.cache.aprov){ S.cache.aprov.aprovAuto = ligada; salvarCache(); }
         toast(ligada ? 'Aprovação automática ligada.' : 'Desligada: os próximos lançamentos vão esperar aprovação.'); render(); }
       catch(er){ e.target.checked = !ligada; toast(er.message, 'bad'); }
     };
     $$('[data-ap]', m).forEach(sec => {
       const numero = sec.dataset.ap, mot = $('.motivo', sec), rec = $('[data-acao="recusar"]', sec);
+      const decidido = r => { const c = S.cache.aprov; if(c){ c.pendentes = c.pendentes.filter(x => x.numero !== numero); c.recentes = [r].concat(c.recentes).slice(0, 10); salvarCache(); } render(); };
       $('[data-acao="aprovar"]', sec).onclick = ev => ocupado(ev.currentTarget, 'Aprovando…', async () => {
-        try { await apiPin('decidirAprovacao', {numero, decisao:'aprovar'}); toast(`${numero} aprovado.`); render(); } catch(er){ toast(er.message, 'bad'); } });
+        try { const r = await apiPin('decidirAprovacao', {numero, decisao:'aprovar'}); toast(`${numero} aprovado.`); decidido(r); } catch(er){ toast(er.message, 'bad'); } });
       rec.onclick = () => {
         if(mot.hidden){ mot.hidden = false; mot.focus(); rec.textContent = 'Confirmar recusa'; return; }
         if(mot.value.trim().length < 3){ toast('Escreva o motivo da recusa.', 'bad'); mot.focus(); return; }
         ocupado(rec, 'Recusando…', async () => {
-          try { await apiPin('decidirAprovacao', {numero, decisao:'recusar', motivo: mot.value.trim()}); toast(`${numero} recusado.`); render(); } catch(er){ toast(er.message, 'bad'); } });
+          try { const r = await apiPin('decidirAprovacao', {numero, decisao:'recusar', motivo: mot.value.trim()}); toast(`${numero} recusado.`); decidido(r); } catch(er){ toast(er.message, 'bad'); } });
       };
     });
     m.querySelectorAll('[data-abast]').forEach(b => b.onclick = () => { const a = D.recentes.find(x => x.numero === b.dataset.abast); if(a) abrirComprovante(a); });
@@ -907,7 +933,8 @@ VIEWS['r-novo'] = {
 };
 
 VIEWS['r-lista'] = {
-  load: () => comCache('auts', () => apiPin('listarAutorizacoes')),
+  chave: 'auts',
+  buscar: () => apiPin('listarAutorizacoes'),
   html(L){
     const SITS = ['Aguardando retirada', 'Retirada confirmada', 'Vencida', 'Cancelada', 'Todas'];
     const cont = k => L.filter(a => k === 'Todas' || a.situacao === k).length;
@@ -1003,7 +1030,8 @@ VIEWS.publico = {
 };
 
 VIEWS['c-abast'] = {
-  load: () => comCache('conf', () => apiPin('listarConferencia')),
+  chave: 'conf',
+  buscar: () => apiPin('listarConferencia'),
   html(D){
     const pend = D.abastPendentes.slice().sort((a, b) => a.lancadoEm.localeCompare(b.lancadoEm)), confs = D.abastConferidos;
     const alertas = pend.filter(a => (analise(a) || {}).tipo === 'alerta').length;
@@ -1053,7 +1081,8 @@ VIEWS['c-det'] = {
 };
 
 VIEWS['c-aut'] = {
-  load: () => comCache('conf', () => apiPin('listarConferencia')),
+  chave: 'conf',
+  buscar: () => apiPin('listarConferencia'),
   html(D){
     const pend = D.retiradasPendentes, confs = D.retiradasConferidas, lst = FILTRO_CA === 'pend' ? pend : confs;
     return `<div class="cab"><h1 class="tit">Retiradas de terceiros</h1><button class="btn btn-sec btn-mini" data-go="c-aut">Atualizar</button></div>
@@ -1105,7 +1134,7 @@ $('#offline').hidden = navigator.onLine;
 const codigo = new URLSearchParams(location.search).get('r');
 if(codigo) go('publico', codigo);
 else if(S.sessao){ go(abas()[0][0]); atualizarSessao(); processarFila(); }
-else go('login');
+else { go('login'); if(navigator.onLine) api('ping').catch(() => {}); } // acorda o servidor enquanto a pessoa digita o PIN
 </script>
 </body>
 </html>
