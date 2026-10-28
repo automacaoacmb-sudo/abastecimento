@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Abastecimento</title>
+<meta name="theme-color" content="#0E4D45">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Abastecimento">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: app de uma coluna (máx. 560px), faixa verde-petróleo no topo, abas fixas embaixo; requisição = cupom de papel */
+:root{
+  --bg:#EDF1EE; --surface:#FFFFFF; --ink:#13221F; --muted:#5A6B66; --line:#D3DCD7;
+  --brand:#0E4D45; --on-brand:#FFFFFF; --accent:#E9A615; --on-accent:#1B1404; --link:#0E4D45;
+  --ok:#1D7447; --ok-bg:#DDF1E5; --warn:#8A5A00; --warn-bg:#FBEFCF; --bad:#B42318; --bad-bg:#FBE1DE; --info:#1E5470; --info-bg:#DCEBF3;
+  --wa:#1A8A4A;
+  --paper:#FCFDFB; --paper-ink:#13221F; --paper-line:#CFD8D3; --paper-muted:#5A6B66;
+  --f-disp:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --r:12px; color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0C1513; --surface:#14201D; --ink:#E4ECE8; --muted:#94A5A0; --line:#263632;
+  --brand:#123F39; --on-brand:#EAF4F1; --accent:#F0B43A; --on-accent:#1B1404; --link:#F0B43A;
+  --ok:#5BCB8F; --ok-bg:#16352A; --warn:#F0B43A; --warn-bg:#3A2D10; --bad:#F2796D; --bad-bg:#40201C; --info:#7CC0E3; --info-bg:#173040;
+  color-scheme:dark}}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.45 var(--f-body);-webkit-tap-highlight-color:transparent;padding-top:env(safe-area-inset-top,0px)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--brand)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+img{max-width:100%}
+
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topo{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--brand);color:var(--on-brand)}
+.topo-in{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:12px;padding-block:10px}
+.marca{width:34px;height:34px;flex:none;border-radius:9px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center}
+.marca svg{width:22px;height:22px}
+.topo-txt{min-width:0;flex:1}
+.topo-txt b{display:block;font:700 20px/1 var(--f-disp);letter-spacing:.02em;text-transform:uppercase}
+.topo-txt small{display:block;font-size:13px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.btn-topo{background:transparent;border:1px solid color-mix(in srgb,var(--on-brand) 40%,transparent);color:var(--on-brand);border-radius:8px;padding:6px 12px;font:600 14px var(--f-disp);letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.faixa{font-weight:600;font-size:14px}
+.faixa div{max-width:560px;margin:0 auto;padding-block:8px}
+#offline{background:var(--warn-bg);color:var(--warn)}
+#filaAviso{background:var(--info-bg);color:var(--info)}
+
+.app{max-width:560px;margin:0 auto;padding-block:18px calc(104px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px}
+.app.publico{padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
+.tit{font:700 30px/1.05 var(--f-disp);text-transform:uppercase;letter-spacing:.01em;margin:0;text-wrap:balance}
+.sub{margin:-8px 0 0;color:var(--muted)}
+.carregando{display:flex;align-items:center;gap:10px;color:var(--muted);padding:32px 0;justify-content:center}
+.carregando::before{content:"";width:18px;height:18px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--brand);animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+
+form{display:flex;flex-direction:column;gap:16px}
+.campo{display:flex;flex-direction:column;gap:6px;min-width:0;border:0;margin:0;padding:0}
+.rot{font:600 14px/1.2 var(--f-disp);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.rot em{font-style:normal;text-transform:none;letter-spacing:0;font-family:var(--f-body);font-weight:400}
+input[type=text],input[type=date],select,textarea{width:100%;min-height:50px;padding:10px 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);font-size:17px}
+textarea{min-height:84px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 45%,transparent)}
+.num{font-family:var(--f-num);font-weight:500;letter-spacing:.02em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ajuda{margin:0;font-size:14px;color:var(--muted)}
+.erro{margin:0;font-size:14px;color:var(--bad);font-weight:600}
+.campo.invalido input,.campo.invalido select,.campo.invalido textarea,.campo.invalido .foto,.campo.invalido .assin{border-color:var(--bad)}
+
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:4px;gap:4px}
+.seg button{border:0;background:transparent;border-radius:7px;min-height:42px;font:600 16px var(--f-disp);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.seg button.on{background:var(--brand);color:var(--on-brand)}
+
+.medidor{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px}
+.med-linha{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:stretch}
+.medidor input{font-family:var(--f-num);font-size:22px;letter-spacing:.06em}
+.foto{display:flex;align-items:center;justify-content:center;gap:8px;min-width:104px;border:1.5px dashed var(--muted);border-radius:10px;padding:6px 12px;cursor:pointer;color:var(--ink);font:600 15px/1.1 var(--f-disp);text-transform:uppercase;letter-spacing:.04em;background:transparent;text-align:center}
+.foto svg{width:22px;height:22px;flex:none}
+.foto.tem{border-style:solid;border-color:var(--ok);padding:4px}
+.foto img{width:64px;height:48px;object-fit:cover;border-radius:6px}
+.foto-larga{min-height:56px;width:100%}
+.info-veic{display:flex;flex-wrap:wrap;gap:6px 16px;background:var(--info-bg);border-radius:8px;padding:8px 12px;font-size:15px}
+.info-veic b{font-weight:600}
+.preco{font-size:14px;color:var(--muted)}
+.preco b{font-family:var(--f-num);color:var(--ink)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 20px;border-radius:10px;border:1.5px solid transparent;font:700 18px var(--f-disp);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;text-decoration:none;text-align:center}
+.btn svg{width:20px;height:20px;flex:none}
+.btn:disabled{opacity:.6;cursor:wait}
+.btn-pri{background:var(--accent);color:var(--on-accent)}
+.btn-sec{background:var(--surface);color:var(--ink);border-color:var(--line)}
+.btn-perigo{background:transparent;color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent)}
+.btn-wa{background:var(--wa);color:#FFFFFF}
+.btn.armado{background:var(--bad);color:#FFFFFF;border-color:var(--bad)}
+.btn-bloco{width:100%}
+.btn-mini{min-height:38px;padding:0 12px;font-size:15px}
+.acoes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.acoes .larga{grid-column:1/-1}
+
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:99px;font:600 13px/1.4 var(--f-disp);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.chip.ok{background:var(--ok-bg);color:var(--ok)} .chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)} .chip.info{background:var(--info-bg);color:var(--info)}
+
+.filtros{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.filtros button{flex:none;border:1.5px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 14px;font:600 15px var(--f-disp);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+.filtros button.on{border-color:var(--brand);background:var(--brand);color:var(--on-brand)}
+.filtros b{font-family:var(--f-num);font-weight:500;margin-left:4px}
+
+.lista{display:flex;flex-direction:column;gap:10px}
+.item{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:start;text-align:left;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;cursor:pointer}
+.item:hover{border-color:var(--muted)}
+.litros{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);border-radius:8px;padding:8px 4px;min-height:64px}
+.litros b{font:600 19px/1 var(--f-num)}
+.litros span{font:600 12px var(--f-disp);letter-spacing:.1em;color:var(--muted);margin-top:4px}
+.item-info{min-width:0;display:flex;flex-direction:column;gap:3px}
+.item-top{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.item-num{font:600 14px var(--f-num);color:var(--muted)}
+.item-tit{font-weight:600;overflow-wrap:anywhere}
+.item-meta{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.item-alerta{font-size:14px;color:var(--bad);font-weight:600}
+.vazio{text-align:center;color:var(--muted);padding:32px 12px;border:1.5px dashed var(--line);border-radius:var(--r)}
+.resumo{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;font-size:15px}
+.resumo b{font-family:var(--f-num)}
+.cab{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+
+.dados{margin:0;display:grid;grid-template-columns:1fr;border-top:1px solid var(--line)}
+.dados div{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.dados dt{font:600 14px var(--f-disp);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding-top:2px}
+.dados dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.dados a{color:var(--link);font-weight:600}
+.analise{border-radius:var(--r);padding:12px 14px;font-size:15px;display:flex;flex-direction:column;gap:4px;color:var(--ink)}
+.analise.ok{background:var(--ok-bg)} .analise.alerta{background:var(--bad-bg)} .analise.neutro{background:var(--info-bg)}
+.analise strong{font:700 15px var(--f-disp);letter-spacing:.06em;text-transform:uppercase}
+.analise .nums{font-family:var(--f-num);font-size:14px}
+.painel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:14px}
+.painel h2{margin:0;font:700 20px var(--f-disp);text-transform:uppercase;letter-spacing:.03em}
+.voltar{display:inline-flex;align-items:center;gap:4px;background:none;border:0;padding:4px 0;color:var(--link);font:600 16px var(--f-disp);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;align-self:flex-start}
+
+.ticket{background:var(--paper);color:var(--paper-ink);border-radius:14px;overflow:hidden;box-shadow:0 1px 0 var(--paper-line),0 8px 24px -14px rgba(0,0,0,.35)}
+.t-cab{background:var(--brand);color:var(--on-brand);padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.t-kick{font:600 13px var(--f-disp);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.t-num{font:600 30px/1.1 var(--f-num);letter-spacing:.02em}
+.t-dados{margin:0;padding:6px 16px 4px;display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.t-dados div{padding:9px 0;border-bottom:1px dashed var(--paper-line);min-width:0}
+.t-dados .w{grid-column:1/-1}
+.t-dados dt{font:600 12px var(--f-disp);letter-spacing:.1em;text-transform:uppercase;color:var(--paper-muted)}
+.t-dados dd{margin:2px 0 0;font-weight:600;font-size:16px;overflow-wrap:anywhere}
+.t-dados dd.n{font-family:var(--f-num);font-weight:500}
+.t-corte{position:relative;height:22px;margin:4px 0}
+.t-corte::before{content:"";position:absolute;left:16px;right:16px;top:50%;border-top:2px dotted var(--paper-line)}
+.t-corte::after{content:"";position:absolute;inset:0 -11px;background:radial-gradient(circle at 0 50%,var(--bg) 10px,transparent 11px),radial-gradient(circle at 100% 50%,var(--bg) 10px,transparent 11px)}
+.t-rod{display:flex;gap:14px;align-items:center;padding:4px 16px 16px}
+.qr{flex:none;width:112px;height:112px;background:#FFFFFF;padding:6px;border-radius:6px;border:1px solid var(--paper-line)}
+.qr img,.qr canvas{width:100%!important;height:100%!important;display:block}
+.t-rod p{margin:0;font-size:14px;color:var(--paper-muted)}
+.t-ret{margin:0 16px 16px;border:1.5px solid #1D7447;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.t-ret b{font:700 14px var(--f-disp);letter-spacing:.08em;text-transform:uppercase;color:#1D7447}
+.t-ret .n{font-family:var(--f-num)}
+.t-ret img{max-width:240px;height:auto;border-bottom:1px solid var(--paper-line)}
+
+.aviso{background:var(--info-bg);color:var(--ink);border-radius:var(--r);padding:12px 14px;font-size:15px}
+.aviso b{font-family:var(--f-disp);letter-spacing:.05em;text-transform:uppercase}
+.estado-grande{border-radius:var(--r);padding:18px;text-align:center;font:700 26px/1.1 var(--f-disp);text-transform:uppercase;letter-spacing:.03em}
+.estado-grande small{display:block;margin-top:6px;font:400 15px var(--f-body);text-transform:none;letter-spacing:0}
+.estado-grande.ok{background:var(--ok-bg);color:var(--ok)} .estado-grande.bad{background:var(--bad-bg);color:var(--bad)} .estado-grande.warn{background:var(--warn-bg);color:var(--warn)}
+
+.assin{position:relative;background:var(--paper);border:1.5px solid var(--line);border-radius:10px;height:180px;overflow:hidden}
+.assin canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.assin .linha{position:absolute;left:18px;right:18px;bottom:42px;border-top:1px solid var(--paper-line);pointer-events:none}
+.assin .dica{position:absolute;left:18px;bottom:16px;font-size:13px;color:var(--paper-muted);pointer-events:none}
+.assin .limpar{position:absolute;right:8px;top:8px;background:var(--paper);color:var(--paper-ink);border:1px solid var(--paper-line);border-radius:7px;padding:4px 10px;font:600 13px var(--f-disp);letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.check{display:flex;gap:10px;align-items:flex-start;font-size:15px;cursor:pointer}
+.check input{width:22px;height:22px;margin-top:1px;accent-color:var(--brand);flex:none}
+
+.login{display:flex;flex-direction:column;align-items:center;gap:18px;padding-top:8px}
+.login h1{margin:0;font:700 40px/1 var(--f-disp);text-transform:uppercase;text-align:center}
+.login p{margin:0;color:var(--muted);text-align:center}
+.pontos{display:flex;gap:14px;height:22px;align-items:center}
+.pontos i{width:16px;height:16px;border-radius:50%;border:2px solid var(--muted)}
+.pontos i.f{background:var(--ink);border-color:var(--ink)}
+.pontos.erro-pin{animation:tremer .35s}
+@keyframes tremer{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+@media (prefers-reduced-motion:reduce){.pontos.erro-pin{animation:none}.carregando::before{animation:none}}
+.teclado{display:grid;grid-template-columns:repeat(3,76px);gap:12px}
+.teclado button{height:64px;border-radius:14px;border:1px solid var(--line);background:var(--surface);font:500 26px var(--f-num);cursor:pointer}
+.teclado button:active{background:var(--line)}
+.teclado .vz{visibility:hidden}
+.instalar{width:100%;background:var(--surface);border:1px dashed var(--muted);border-radius:var(--r);padding:12px 14px;font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:8px}
+.versao{font-size:12px;color:var(--muted)}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabbar-in{max-width:560px;margin:0 auto;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:2px;padding-block:6px}
+.tabbar button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;color:var(--muted);font:600 12px/1.1 var(--f-disp);letter-spacing:.04em;text-transform:uppercase;cursor:pointer;border-radius:10px;text-align:center;min-width:0}
+.tabbar svg{width:24px;height:24px}
+.tabbar button.on{color:var(--ink)}
+.tabbar button.on svg{background:var(--accent);color:var(--on-accent);border-radius:99px;padding:2px 10px;width:44px;box-sizing:border-box}
+.tabbar .bolha{position:absolute;top:0;left:calc(50% + 8px);background:var(--bad);color:#FFFFFF;border-radius:99px;font:600 11px/16px var(--f-num);min-width:16px;padding:0 4px}
+
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:40;width:max-content;max-width:min(92vw,520px);background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:10px;font-weight:600;box-shadow:0 10px 30px -10px rgba(0,0,0,.5)}
+#toast.bad{background:var(--bad);color:#FFFFFF}
+.sheet-bg{position:fixed;inset:0;z-index:30;background:rgba(6,14,12,.55);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:560px;max-height:88vh;overflow:auto;background:var(--bg);border-radius:18px 18px 0 0;padding-block:12px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px}
+.sheet .alca{width:44px;height:5px;border-radius:9px;background:var(--line);align-self:center}
+.sheet h2{margin:0;font:700 24px var(--f-disp);text-transform:uppercase}
+.sheet img.grande{width:100%;border-radius:10px}
+</style>
+</head>
+<body>
+<header class="topo"><div class="topo-in gut">
+  <div class="marca" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h12"/><path d="M7 7h4v4H7z"/><path d="M14 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/></svg></div>
+  <div class="topo-txt"><b>Abastecimento</b><small id="quem">Requisições e registros</small></div>
+  <button class="btn-topo" id="sair" hidden>Sair</button>
+</div></header>
+<div id="offline" class="faixa" hidden><div class="gut">Sem internet. Os lançamentos ficam guardados no celular e sobem quando o sinal voltar.</div></div>
+<div id="filaAviso" class="faixa" hidden><div class="gut" id="filaTxt"></div></div>
+<main class="app gut" id="main"><div class="carregando">Abrindo…</div></main>
+<nav class="tabbar" id="tabbar" hidden></nav>
+<div id="toast" role="status" hidden></div>
+<div class="sheet-bg" id="sheet" hidden><div class="sheet gut" id="sheetBody"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+/* ===================== Configuração ===================== */
+const CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
+  VERSAO: '1.0.0',
+  JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+};
+const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
+
+/* ===================== Utilitários ===================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const z2 = n => String(n).padStart(2, '0');
+const hojeISO = (d = new Date()) => `${d.getFullYear()}-${z2(d.getMonth()+1)}-${z2(d.getDate())}`;
+function fmtData(iso){ if(!iso) return ''; if(String(iso).length === 10){ const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; }
+  const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}); }
+const fmtL = n => (n == null || isNaN(n)) ? '—' : Number(n).toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1});
+const fmtN = n => (n == null || n === '' || isNaN(n)) ? '—' : Number(n).toLocaleString('pt-BR', {maximumFractionDigits:1});
+const fmtR = n => (n == null || n === '' || isNaN(n)) ? '—' : Number(n).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+function num(s){ s = String(s ?? '').trim(); if(!s) return NaN;
+  if(s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if(/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  return Number(s); }
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+const lsDel = k => { try { localStorage.removeItem(k); } catch(e){} };
+const waLink = txt => 'https://wa.me/?text=' + encodeURIComponent(txt);
+const nomeMed = t => t === 'Horímetro' ? 'Horímetro' : 'Km';
+const unMed = t => t === 'Horímetro' ? 'h' : 'km';
+
+/* ===================== Servidor ===================== */
+async function api(acao, dados = {}, timeout = 40000){
+  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const r = await fetch(CONFIG.API_URL, {method:'POST', body: JSON.stringify({acao, ...dados}),
+      headers:{'Content-Type':'text/plain;charset=utf-8'}, redirect:'follow', signal: ctrl.signal});
+    const j = await r.json();
+    if(!j.ok){ const e = new Error(j.erro || 'Erro no servidor.'); e.servidor = true; throw e; }
+    return j.dados;
+  } catch(e){
+    if(e.servidor){
+      if(S.sessao && /PIN não encontrado/.test(e.message) && acao !== 'login'){ sair(); toast('Seu acesso mudou. Entre de novo com o PIN.', 'bad'); }
+      throw e;
+    }
+    const x = new Error(navigator.onLine ? 'Não consegui falar com o servidor. Tente de novo.' : 'Sem internet.'); x.rede = true; throw x;
+  } finally { clearTimeout(t); }
+}
+const apiPin = (acao, dados = {}) => api(acao, {pin: S.sessao.pin, ...dados});
+
+/* ===================== Estado ===================== */
+const S = { sessao: lsGet('abast_sessao'), cache: lsGet('abast_cache') || {} };
+const salvarSessao = () => lsSet('abast_sessao', S.sessao);
+const salvarCache = () => lsSet('abast_cache', S.cache);
+const temPerfil = p => !!S.sessao && S.sessao.usuario.perfis.includes(p);
+async function comCache(chave, fn){
+  try { const d = await fn(); S.cache[chave] = d; salvarCache(); return d; }
+  catch(e){ if(e.rede && S.cache[chave] !== undefined){ toast('Sem conexão: mostrando os últimos dados salvos.'); return S.cache[chave]; } throw e; }
+}
+
+/* ===================== Fila sem internet (IndexedDB) ===================== */
+const fila = (() => {
+  let dbp = null, memoria = new Map();
+  const abrir = () => dbp || (dbp = new Promise((res, rej) => {
+    try { const r = indexedDB.open('abastecimento', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('fila', {keyPath:'idApp'});
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    } catch(e){ rej(e); } }));
+  const tx = async (modo, fn) => { const db = await abrir(); return new Promise((res, rej) => {
+    const t = db.transaction('fila', modo), req = fn(t.objectStore('fila'));
+    t.oncomplete = () => res(req && req.result); t.onerror = () => rej(t.error); }); };
+  return {
+    async todos(){ try { return await tx('readonly', s => s.getAll()); } catch(e){ return [...memoria.values()]; } },
+    async por(v){ try { await tx('readwrite', s => s.put(v)); } catch(e){ memoria.set(v.idApp, v); } },
+    async tirar(k){ try { await tx('readwrite', s => s.delete(k)); } catch(e){} memoria.delete(k); }
+  };
+})();
+let enviandoFila = false;
+async function processarFila(){
+  if(enviandoFila || !navigator.onLine) return;
+  enviandoFila = true; let enviados = 0;
+  try {
+    for(const it of await fila.todos()){
+      if(it.erro) continue;
+      try { const rec = await api('registrarAbastecimento', {pin: it.pin, reg: it.reg}); await fila.tirar(it.idApp); guardarMeu(rec); enviados++; }
+      catch(e){ if(e.rede) break; it.erro = e.message; await fila.por(it); }
+    }
+  } finally {
+    enviandoFila = false; await avisoFila();
+    if(enviados){ toast(`${enviados} lançamento(s) enviado(s).`); if(VIEW === 'm-lista') render(); }
+  }
+}
+async function avisoFila(){
+  const itens = S.sessao ? (await fila.todos()).filter(i => i.pin === S.sessao.pin) : [];
+  const n = itens.length, erros = itens.filter(i => i.erro).length;
+  $('#filaAviso').hidden = !n || VIEW === 'login';
+  $('#filaTxt').textContent = erros ? `${erros} lançamento(s) com problema. Veja em Meus.` : `${n} lançamento(s) guardado(s) no celular, esperando internet.`;
+}
+function guardarMeu(rec){
+  const l = S.cache.meus || []; const i = l.findIndex(x => x.idApp && x.idApp === rec.idApp);
+  if(i >= 0) l[i] = rec; else l.unshift(rec);
+  S.cache.meus = l.slice(0, 60); salvarCache();
+}
+function deFila(it){
+  const r = it.reg, v = (S.sessao.cadastros.veiculos || []).find(x => x.placa === r.placa);
+  return { numero: null, idApp: it.idApp, fila: true, erro: it.erro || '', lancadoEm: r.lancadoEm, motorista: S.sessao.usuario.nome,
+    veiculo: v ? v.veiculo : r.veiculoOutro, placa: v ? v.placa : '', fazenda: v ? v.fazenda : r.fazenda, tipoLeitura: v ? v.leitura : r.tipoLeitura,
+    leitura: r.leitura === '' ? null : num(r.leitura), posto: r.posto, combustivel: r.combustivel, litros: num(r.litros),
+    valor: r.valor ? num(r.valor) : null, obs: r.obs, fotoPainelLocal: r.fotoPainel, aprovacao: 'Na fila' };
+}
+
+/* ===================== Status ===================== */
+function stAbast(a){
+  if(a.fila) return a.erro ? ['bad', 'Não enviado'] : ['warn', 'Na fila · sem internet'];
+  if(a.aprovacao === 'Recusado') return ['bad', 'Recusado'];
+  if(a.aprovacao === 'Aguardando aprovação') return ['warn', 'Aguardando aprovação'];
+  if(a.conferencia === 'Conferido') return ['ok', 'Conferido'];
+  if(a.conferencia === 'Divergência') return ['bad', 'Divergência'];
+  return ['info', 'Aprovado · a conferir'];
+}
+function stAut(a){
+  const s = a.situacao;
+  return [s === 'Retirada confirmada' ? 'ok' : s === 'Aguardando retirada' ? 'warn' : 'bad', s];
+}
+const chip = (t, txt) => `<span class="chip ${t}">${esc(txt)}</span>`;
+const titAbast = a => a.numero || 'Na fila';
+
+function analise(a){
+  if(!a.placa) return null;
+  const med = a.leituraConferida ?? a.leitura, nm = nomeMed(a.tipoLeitura), un = unMed(a.tipoLeitura);
+  if(med == null) return {tipo:'neutro', tit:'Só foto', txt:`${nm} não foi digitado. Confira pela foto do painel e preencha o valor conferido.`};
+  const ant = a.anterior;
+  if(!ant) return {tipo:'neutro', tit:'Primeiro registro', txt:'Primeiro abastecimento deste veículo no sistema. Não há leitura anterior para comparar.'};
+  const dif = med - ant.leitura;
+  const base = `Anterior: ${fmtN(ant.leitura)} ${un} (${ant.numero}, ${fmtData(ant.em).slice(0, 10)}) → atual: ${fmtN(med)} ${un}`;
+  if(dif <= 0) return {tipo:'alerta', tit:`${nm} não avançou`, txt:'A leitura é menor ou igual à anterior. Confira a foto do painel.', nums: base};
+  if(a.tipoLeitura !== 'Horímetro'){
+    const kml = dif / a.litros;
+    if(dif > 2500 || kml > 15 || kml < 1) return {tipo:'alerta', tit:'Fora do padrão', txt:`Rodou ${fmtN(dif)} km com ${fmtL(a.litros)} L (${fmtL(kml)} km/L). Confira a leitura.`, nums: base};
+    return {tipo:'ok', tit:'Dentro do esperado', txt:`Rodou ${fmtN(dif)} km · média de ${fmtL(kml)} km/L.`, nums: base};
+  }
+  return {tipo:'ok', tit:'Leitura registrada', txt:`${fmtN(dif)} h desde o último · ${fmtL(a.litros / dif)} L/h.`, nums: base};
+}
+
+/* ===================== Ícones ===================== */
+const ICON = {
+  bomba:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h12"/><path d="M7 7h4v4H7z"/><path d="M14 9h2a2 2 0 0 1 2 2v5a1.5 1.5 0 0 0 3 0V8l-3-3"/></svg>',
+  lista:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>',
+  assin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4l6 6L9 21H3v-6z"/><path d="M12 6l6 6"/></svg>',
+  conf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>',
+  camera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/></svg>',
+  pdf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 14h6M9 17h4"/></svg>',
+  wa:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2s.2-1.1.2-1.2-.2-.2-.5-.3z"/></svg>'
+};
+
+/* ===================== Navegação ===================== */
+let VIEW = 'login', PARAM = null, RID = 0;
+function abas(){
+  const t = [];
+  if(temPerfil('motorista')) t.push(['m-novo', 'Lançar', 'bomba'], ['m-lista', 'Meus', 'lista']);
+  if(temPerfil('responsavel')) t.push(['r-aprovar', 'Aprovar', 'conf'], ['r-novo', 'Autorizar', 'assin'], ['r-lista', 'Autorizações', 'lista']);
+  if(temPerfil('responsavel') && !temPerfil('motorista')) t.push(['m-novo', 'Lançar', 'bomba']);
+  if(temPerfil('conferente')) t.push(['c-abast', 'Conferir', 'conf'], ['c-aut', 'Terceiros', 'assin']);
+  return t;
+}
+const PAI = {req:'r-lista', 'c-det':'c-abast'};
+function go(v, p = null){ VIEW = v; PARAM = p; window.scrollTo(0, 0); render(); }
+function topo(){
+  const pub = VIEW === 'publico';
+  $('#quem').textContent = pub ? 'Requisição para terceiro' : S.sessao ? S.sessao.usuario.nome : 'Requisições e registros';
+  $('#sair').hidden = !S.sessao || pub || VIEW === 'login';
+  $('#main').classList.toggle('publico', pub || VIEW === 'login');
+  const tb = $('#tabbar');
+  if(S.sessao && !pub && VIEW !== 'login'){
+    const pend = (S.cache.aprov && S.cache.aprov.pendentes) ? S.cache.aprov.pendentes.length : 0;
+    tb.hidden = false;
+    tb.innerHTML = `<div class="tabbar-in gut">${abas().map(([v, l, i]) => `<button data-go="${v}" class="${(VIEW === v || PAI[VIEW] === v) ? 'on' : ''}">${ICON[i]}<span>${l}</span>${v === 'r-aprovar' && pend ? `<span class="bolha">${pend}</span>` : ''}</button>`).join('')}</div>`;
+  } else tb.hidden = true;
+  avisoFila();
+}
+async function render(){
+  const id = ++RID, V = VIEWS[VIEW], m = $('#main');
+  topo();
+  let D = null;
+  if(V.load){
+    m.innerHTML = '<div class="carregando">Carregando…</div>';
+    try { D = await V.load(); }
+    catch(e){
+      if(id !== RID) return;
+      m.innerHTML = `<div class="vazio">${esc(e.message)}<br><br><button class="btn btn-sec" id="tentar">Tentar de novo</button></div>`;
+      $('#tentar', m).onclick = () => render(); return;
+    }
+    if(id !== RID) return;
+  }
+  m.onclick = null;
+  m.innerHTML = V.html(D); if(V.bind) V.bind(m, D);
+  topo();
+}
+
+/* ===================== Avisos e folhas ===================== */
+let toastT;
+function toast(msg, tipo = ''){ const t = $('#toast'); t.textContent = msg; t.className = tipo; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 4200); }
+function abrirFolha(html, bind){ const b = $('#sheetBody'); b.innerHTML = `<div class="alca"></div>${html}<button class="btn btn-sec btn-bloco" data-fechar>Fechar</button>`; $('#sheet').hidden = false; if(bind) bind(b); }
+function fecharFolha(){ $('#sheet').hidden = true; $('#sheetBody').innerHTML = ''; }
+function duploToque(btn, acao, txt = 'Toque de novo para confirmar'){
+  if(btn.dataset.armado){ acao(); return; }
+  const orig = btn.innerHTML; btn.dataset.armado = 1; btn.textContent = txt; btn.classList.add('armado');
+  setTimeout(() => { if(btn.isConnected && btn.dataset.armado){ delete btn.dataset.armado; btn.innerHTML = orig; btn.classList.remove('armado'); } }, 3500);
+}
+async function ocupado(btn, txt, fn){
+  const orig = btn.innerHTML; btn.disabled = true; btn.textContent = txt;
+  try { return await fn(); } finally { if(btn.isConnected){ btn.disabled = false; btn.innerHTML = orig; } }
+}
+async function copiar(txt){
+  try { await navigator.clipboard.writeText(txt); toast('Copiado.'); }
+  catch(e){ abrirFolha(`<h2>Copiar texto</h2><textarea id="txtCopia" readonly style="min-height:200px">${esc(txt)}</textarea>`, b => { const t = $('#txtCopia', b); t.focus(); t.select(); }); }
+}
+function comprimir(file, max = 1000, q = .6){
+  return new Promise((res, rej) => { const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', q)); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('imagem')); }; img.src = url; });
+}
+function seg(el, cb){ el.addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; $$('button', el).forEach(x => x.classList.toggle('on', x === b)); cb(b.dataset.v); }); }
+function marcarErro(campo, msg){ campo.classList.add('invalido'); const p = document.createElement('p'); p.className = 'erro'; p.textContent = msg; campo.appendChild(p); }
+function limparErros(f){ $$('.invalido', f).forEach(c => c.classList.remove('invalido')); $$('.erro', f).forEach(p => p.remove()); }
+function rolarErro(m){ $('.invalido', m)?.scrollIntoView({behavior:'smooth', block:'center'}); }
+
+/* ===================== Abastecimento: textos e telas ===================== */
+function dadosAbast(a, comFotos){
+  const rows = [['Motorista', a.motorista], ['Data', fmtData(a.lancadoEm)], ['Veículo', `${a.veiculo}${a.placa ? ' · ' + a.placa : ''}`], ['Fazenda', a.fazenda || '—'],
+    [nomeMed(a.tipoLeitura), a.leitura != null ? `${fmtN(a.leitura)} ${unMed(a.tipoLeitura)}` : 'Só foto']];
+  if(a.leituraConferida != null && a.leituraConferida !== a.leitura) rows.push([`${nomeMed(a.tipoLeitura)} conferido`, `${fmtN(a.leituraConferida)} ${unMed(a.tipoLeitura)}`]);
+  rows.push(['Posto', a.posto], ['Combustível', a.combustivel], ['Litros', fmtL(a.litros) + ' L'], ['Valor', fmtR(a.valor)]);
+  if(a.valor && a.litros) rows.push(['Preço por litro', fmtR(a.valor / a.litros)]);
+  if(a.obs) rows.push(['Observação', a.obs]);
+  if(a.aprovacao && !a.fila) rows.push(['Aprovação', a.aprovacao === 'Recusado' ? `Recusado por ${a.aprovadoPor}${a.motivoRecusa ? ': ' + a.motivoRecusa : ''}` : a.aprovadoPor && a.aprovadoPor !== 'Automática' ? `${a.aprovacao} · ${a.aprovadoPor}` : a.aprovacao]);
+  if(a.conferencia) rows.push(['Conferência', `${a.conferencia} · ${a.conferidoPor}${a.obsConferencia ? ' · ' + a.obsConferencia : ''}`]);
+  if(a.erro) rows.push(['Problema', a.erro]);
+  let html = `<dl class="dados">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}`;
+  if(comFotos){
+    const links = [['fotoPainel', 'Foto do painel'], ['fotoCupom', 'Foto do cupom'], ['pdf', 'PDF']].filter(([k]) => a[k]);
+    if(links.length) html += `<div><dt>Arquivos</dt><dd>${links.map(([k, l]) => `<a href="${esc(a[k])}" target="_blank" rel="noopener">${l}</a>`).join(' · ')}</dd></div>`;
+  }
+  return html + '</dl>';
+}
+function textoAbast(a){
+  const st = a.aprovacao === 'Aguardando aprovação' ? 'AGUARDANDO APROVAÇÃO' : a.aprovacao === 'Recusado' ? 'RECUSADO' : 'APROVADO';
+  return `*Abastecimento ${a.numero} · ${st}*\n${S.sessao.config.empresa}\n\nMotorista: ${a.motorista}\nVeículo: ${a.veiculo}${a.placa ? ' · ' + a.placa : ''}\nFazenda: ${a.fazenda || '—'}\n${nomeMed(a.tipoLeitura)}: ${a.leitura != null ? fmtN(a.leitura) : 'ver foto do painel'}\nPosto: ${a.posto}\nCombustível: ${a.combustivel}\nLitros: ${fmtL(a.litros)} L${a.valor ? `\nValor: ${fmtR(a.valor)}` : ''}\nData: ${fmtData(a.lancadoEm)}${a.obs ? `\nObs.: ${a.obs}` : ''}`;
+}
+function textoPedido(a){
+  return `*Pedido de aprovação · ${a.numero}*\n${a.motorista} quer abastecer ${a.veiculo}${a.placa ? ' · ' + a.placa : ''} (Fazenda ${a.fazenda || '—'}): ${fmtL(a.litros)} L de ${a.combustivel} no ${a.posto}.\nAprove pelo app, na aba Aprovar.`;
+}
+function abrirComprovante(a){
+  const [t, s] = stAbast(a);
+  let botoes = '';
+  if(a.fila) botoes = a.erro
+    ? `<p class="ajuda">O servidor recusou este lançamento. Corrija e lance de novo.</p><button class="btn btn-perigo btn-bloco" id="cpDesc">Descartar este lançamento</button>`
+    : `<p class="ajuda">Está guardado no celular e sobe sozinho quando o sinal voltar. O número sai depois do envio.</p>`;
+  else if(a.aprovacao === 'Aguardando aprovação') botoes = `<a class="btn btn-wa btn-bloco" href="${waLink(textoPedido(a))}" target="_blank" rel="noopener">${ICON.wa} Avisar o responsável</a><p class="ajuda">O responsável aprova pelo app. Quando aprovar, o status muda aqui.</p>`;
+  else if(a.aprovacao !== 'Recusado') botoes = `<a class="btn btn-wa btn-bloco" href="${waLink(textoAbast(a))}" target="_blank" rel="noopener">${ICON.wa} Enviar pelo WhatsApp</a>
+    <div class="acoes"><button class="btn btn-sec" id="cpImg">${ICON.share} Imagem</button><button class="btn btn-sec" id="cpPdf">${ICON.pdf} PDF</button></div>`;
+  abrirFolha(`<div class="cab"><h2 style="font-family:var(--f-num)">${esc(titAbast(a))}</h2>${chip(t, s)}</div>${dadosAbast(a, false)}${botoes}`, b => {
+    const i = $('#cpImg', b), p = $('#cpPdf', b), d = $('#cpDesc', b);
+    if(i) i.onclick = () => compartilharDoc(docAbast(a), a.numero, 'imagem');
+    if(p) p.onclick = () => compartilharDoc(docAbast(a), a.numero, 'pdf');
+    if(d) d.onclick = () => duploToque(d, async () => { await fila.tirar(a.idApp); fecharFolha(); toast('Lançamento descartado.'); render(); });
+  });
+}
+function itemAbast(a, comAlerta){
+  const [t, s] = stAbast(a); const an = comAlerta && !a.conferencia ? analise(a) : null;
+  return `<button class="item" data-abast="${esc(a.numero || a.idApp)}">
+    <div class="litros"><b>${fmtL(a.litros)}</b><span>LITROS</span></div>
+    <div class="item-info"><div class="item-top"><span class="item-num">${esc(titAbast(a))}</span>${chip(t, s)}</div>
+      <div class="item-tit">${esc(a.veiculo)}${a.placa ? ' · ' + esc(a.placa) : ''}</div>
+      <div class="item-meta">Fazenda ${esc(a.fazenda || '—')} · ${esc(a.combustivel)} · ${esc(a.posto)} · ${fmtData(a.lancadoEm)}${comAlerta ? ' · ' + esc(a.motorista) : ''}</div>
+      ${an && an.tipo === 'alerta' ? `<div class="item-alerta">⚠ ${esc(an.tit)}</div>` : ''}</div></button>`;
+}
+
+/* ===================== Autorização: textos e telas ===================== */
+const linkReq = a => `${LINK_BASE}?r=${a.codigo}`;
+function ticketHTML(a, assinaturaLocal){
+  const [t, s] = stAut(a), r = a.retirada;
+  return `<article class="ticket">
+    <div class="t-cab"><div><div class="t-kick">Requisição de abastecimento · terceiro</div><div class="t-num">${esc(a.numero)}</div></div><span class="chip ${t}" style="background:var(--paper)">${esc(s)}</span></div>
+    <dl class="t-dados">
+      <div class="w"><dt>Autorizado a retirar</dt><dd>${esc(a.terceiro)}</dd></div>
+      <div><dt>CPF</dt><dd class="n">${esc(a.cpf)}</dd></div>
+      <div><dt>Placa</dt><dd class="n">${esc(a.placa)}</dd></div>
+      <div><dt>Retirada</dt><dd>${a.tipo === 'galoes' ? `${a.galoes} galões` : 'No tanque do veículo'}</dd></div>
+      <div><dt>${a.tipo === 'galoes' ? 'Fazenda destino' : 'Fazenda'}</dt><dd>${esc(a.fazenda)}</dd></div>
+      <div class="w"><dt>Posto</dt><dd>${esc(a.posto)}</dd></div>
+      <div><dt>Combustível</dt><dd>${esc(a.combustivel)}</dd></div>
+      <div><dt>Limite</dt><dd class="n">${fmtN(a.limite)} L</dd></div>
+      <div><dt>Válida até</dt><dd class="n">${fmtData(a.validaAte)}</dd></div>
+      <div><dt>Emitida em</dt><dd class="n">${fmtData(a.emitidaEm)}</dd></div>
+      <div class="w"><dt>Emitida por</dt><dd>${esc(a.emitidaPor)} · ${esc(a.empresa)}</dd></div>
+      <div class="w"><dt>Justificativa</dt><dd style="font-weight:400">${esc(a.justificativa)}</dd></div>
+    </dl>
+    <div class="t-corte"></div>
+    <div class="t-rod"><div class="qr" data-qr="${esc(linkReq(a))}"></div><p>Frentista: aponte a câmera para o QR code e confira se a requisição está válida e ainda não foi usada.</p></div>
+    ${r ? `<div class="t-ret"><b>Retirada confirmada</b>
+      <div><span class="n">${fmtL(r.litros)} L</span>${r.km ? ` · Km <span class="n">${fmtN(r.km)}</span>` : ''} · ${fmtData(r.em)}</div>
+      ${assinaturaLocal ? `<img src="${assinaturaLocal}" alt="Assinatura de ${esc(r.nome)}">` : '<div style="font-size:13px;color:var(--paper-muted)">Assinatura registrada no sistema.</div>'}
+      <div>${esc(r.nome)}</div></div>` : ''}
+  </article>`;
+}
+function desenharQRs(root){
+  $$('[data-qr]', root).forEach(el => {
+    if(typeof QRCode === 'undefined'){ el.textContent = 'QR indisponível sem internet'; el.style.fontSize = '12px'; return; }
+    el.innerHTML = ''; new QRCode(el, {text: el.dataset.qr, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M});
+  });
+}
+function textoAut(a){
+  return `*Requisição de abastecimento ${a.numero}*\n${a.empresa}\n\nAutorizado: ${a.terceiro}\nCPF: ${a.cpf}\nPlaca: ${a.placa}\nRetirada: ${a.tipo === 'galoes' ? `${a.galoes} galões para a Fazenda ${a.fazenda}` : `no tanque do veículo (Fazenda ${a.fazenda})`}\nPosto: ${a.posto}\nCombustível: ${a.combustivel}, até ${fmtN(a.limite)} L\nVálida até: ${fmtData(a.validaAte)}\nMotivo: ${a.justificativa}\n\nNo posto, abra o link, informe os litros e assine para confirmar a retirada:\n${linkReq(a)}`;
+}
+function itemAut(a){
+  const [t, s] = stAut(a);
+  return `<button class="item" data-aut="${esc(a.numero)}">
+    <div class="litros"><b>${a.retirada ? fmtL(a.retirada.litros) : fmtN(a.limite)}</b><span>${a.retirada ? 'RETIRADO' : 'LIMITE L'}</span></div>
+    <div class="item-info"><div class="item-top"><span class="item-num">${esc(a.numero)}</span>${chip(t, s)}</div>
+      <div class="item-tit">${esc(a.terceiro)}</div>
+      <div class="item-meta">Placa ${esc(a.placa)} · ${a.tipo === 'galoes' ? `${a.galoes} galões · ` : ''}${esc(a.posto)} · até ${fmtData(a.validaAte)}</div>
+      ${a.conferencia ? `<div class="item-meta">Conferida por ${esc(a.conferidoPor)}</div>` : ''}</div></button>`;
+}
+
+/* ===================== Imagem e PDF dos documentos ===================== */
+function docAbast(a){
+  const [t, s] = stAbast(a);
+  return { kicker: 'Registro de abastecimento', numero: a.numero, status: [s, t], campos: [
+    ['Motorista', a.motorista], ['Data', fmtData(a.lancadoEm), 1, 1],
+    ['Veículo', `${a.veiculo}${a.placa ? ' · ' + a.placa : ''}`], ['Fazenda', a.fazenda, 1], [nomeMed(a.tipoLeitura), a.leitura != null ? `${fmtN(a.leitura)} ${unMed(a.tipoLeitura)}` : 'Ver foto', 1, 1],
+    ['Posto', a.posto], ['Combustível', a.combustivel, 1], ['Litros', fmtL(a.litros) + ' L', 1, 1],
+    ['Valor', fmtR(a.valor), 1, 1], ['Preço por litro', a.valor && a.litros ? fmtR(a.valor / a.litros) : '—', 1, 1],
+    ['Aprovação', a.aprovadoPor && a.aprovadoPor !== 'Automática' ? `${a.aprovacao} · ${a.aprovadoPor}` : a.aprovacao],
+    ...(a.obs ? [['Observação', a.obs]] : [])
+  ]};
+}
+function docAut(a, assinatura){
+  const [t, s] = stAut(a);
+  return { kicker: 'Requisição de abastecimento · terceiro', numero: a.numero, status: [s, t], qr: linkReq(a), campos: [
+    ['Autorizado a retirar', a.terceiro], ['CPF', a.cpf, 1, 1], ['Placa', a.placa, 1, 1],
+    ['Retirada', a.tipo === 'galoes' ? `${a.galoes} galões` : 'No tanque do veículo', 1], [a.tipo === 'galoes' ? 'Fazenda destino' : 'Fazenda', a.fazenda, 1],
+    ['Posto', a.posto], ['Combustível', a.combustivel, 1], ['Limite', fmtN(a.limite) + ' L', 1, 1],
+    ['Válida até', fmtData(a.validaAte), 1, 1], ['Emitida em', fmtData(a.emitidaEm), 1, 1],
+    ['Emitida por', `${a.emitidaPor} · ${a.empresa}`], ['Justificativa', a.justificativa]
+  ], retirada: a.retirada ? {...a.retirada, assinatura} : null };
+}
+function quebrar(g, txt, x, y, larg, alt){
+  const pal = String(txt ?? '—').split(/\s+/); let l = '';
+  for(const p of pal){ const t = l ? l + ' ' + p : p; if(g.measureText(t).width > larg && l){ g.fillText(l, x, y); y += alt; l = p; } else l = t; }
+  if(l){ g.fillText(l, x, y); y += alt; } return y;
+}
+function rr(g, x, y, w, h, r){ g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+const carregarImg = src => new Promise(res => { const i = new Image(); i.onload = () => res(i); i.onerror = () => res(null); i.src = src; });
+/** Desenha o documento em um canvas (para imagem e PDF). campos: [rótulo, valor, meia?, mono?] */
+async function desenharDoc(doc){
+  try { await document.fonts.ready; } catch(e){}
+  const W = 1000, c = document.createElement('canvas'); c.width = W; c.height = 2600; const g = c.getContext('2d');
+  const F = (w, s, f = 'Barlow') => `${w} ${s}px "${f}", Arial, sans-serif`;
+  const cor = {ok:'#1D7447', warn:'#8A5A00', bad:'#B42318', info:'#1E5470'}[doc.status[1]] || '#13221F';
+  g.fillStyle = '#FCFDFB'; g.fillRect(0, 0, W, 2600);
+  g.fillStyle = '#0E4D45'; g.fillRect(0, 0, W, 190);
+  g.fillStyle = '#F0B43A'; g.font = F(600, 28, 'Barlow Condensed'); g.fillText(doc.kicker.toUpperCase(), 56, 66);
+  g.fillStyle = '#FFFFFF'; g.font = F(600, 72, 'IBM Plex Mono'); g.fillText(doc.numero || '—', 56, 150);
+  g.font = F(500, 24); g.textAlign = 'right'; g.fillText(S.sessao ? S.sessao.config.empresa : (doc.empresa || ''), W - 56, 66); g.textAlign = 'left';
+  g.font = F(700, 28, 'Barlow Condensed'); const st = doc.status[0].toUpperCase(), tw = g.measureText(st).width + 40;
+  g.fillStyle = '#FCFDFB'; rr(g, W - 56 - tw, 104, tw, 52, 26); g.fill(); g.fillStyle = cor; g.fillText(st, W - 36 - tw, 140);
+  let y = 250;
+  const campo = (rot, val, x, larg, mono) => {
+    g.fillStyle = '#5A6B66'; g.font = F(600, 24, 'Barlow Condensed'); g.fillText(String(rot).toUpperCase(), x, y);
+    g.fillStyle = '#13221F'; g.font = mono ? F(500, 34, 'IBM Plex Mono') : F(600, 34); return quebrar(g, val, x, y + 44, larg, 44);
+  };
+  const cs = doc.campos;
+  for(let i = 0; i < cs.length; i++){
+    const [r, v, meia, mono] = cs[i];
+    if(meia && cs[i + 1] && cs[i + 1][2]){ const [r2, v2, , mono2] = cs[i + 1]; const y1 = campo(r, v, 56, 420, mono), y2 = campo(r2, v2, 540, 400, mono2); y = Math.max(y1, y2) + 24; i++; }
+    else y = campo(r, v, 56, W - 112, mono) + 24;
+  }
+  g.strokeStyle = '#CFD8D3'; g.lineWidth = 3; g.setLineDash([4, 10]); g.beginPath(); g.moveTo(56, y); g.lineTo(W - 56, y); g.stroke(); g.setLineDash([]); y += 40;
+  if(doc.qr && typeof QRCode !== 'undefined'){
+    const d = document.createElement('div'); new QRCode(d, {text: doc.qr, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M});
+    const qc = d.querySelector('canvas'); if(qc) g.drawImage(qc, 56, y, 240, 240);
+    g.fillStyle = '#5A6B66'; g.font = F(500, 30); quebrar(g, 'Frentista: aponte a câmera para o QR code e confira se a requisição está válida e ainda não foi usada.', 330, y + 60, W - 386, 40);
+    y += 280;
+  }
+  if(doc.retirada){
+    const r = doc.retirada; g.strokeStyle = '#1D7447'; g.lineWidth = 3; rr(g, 56, y, W - 112, 300, 16); g.stroke();
+    g.fillStyle = '#1D7447'; g.font = F(700, 28, 'Barlow Condensed'); g.fillText('RETIRADA CONFIRMADA', 84, y + 50);
+    g.fillStyle = '#13221F'; g.font = F(500, 32, 'IBM Plex Mono'); g.fillText(`${fmtL(r.litros)} L${r.km ? ' · Km ' + fmtN(r.km) : ''} · ${fmtData(r.em)}`, 84, y + 98);
+    if(r.assinatura){ const im = await carregarImg(r.assinatura); if(im){ const h = 140, w = Math.min(560, im.width * h / im.height); g.drawImage(im, 84, y + 116, w, h); } }
+    else { g.fillStyle = '#5A6B66'; g.font = F(400, 26); g.fillText('Assinatura registrada no sistema.', 84, y + 190); }
+    g.fillStyle = '#13221F'; g.font = F(600, 30); g.fillText(r.nome, 84, y + 282); y += 340;
+  }
+  g.fillStyle = '#5A6B66'; g.font = F(400, 22); g.fillText(`Gerado em ${fmtData(new Date().toISOString())} pelo app de abastecimento.`, 56, y + 10); y += 40;
+  const out = document.createElement('canvas'); out.width = W; out.height = y;
+  out.getContext('2d').drawImage(c, 0, 0); return out;
+}
+function carregarScript(src){
+  return new Promise((res, rej) => { if(document.querySelector(`script[src="${src}"]`)) return res();
+    const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Não consegui carregar o gerador de PDF. Precisa de internet na primeira vez.')); document.head.appendChild(s); });
+}
+async function gerarArquivo(doc, nome, tipo){
+  const cv = await desenharDoc(doc);
+  if(tipo === 'imagem'){ const blob = await new Promise(r => cv.toBlob(r, 'image/png')); return new File([blob], `${nome}.png`, {type:'image/png'}); }
+  await carregarScript(CONFIG.JSPDF);
+  const { jsPDF } = window.jspdf, pdf = new jsPDF({unit:'mm', format:'a4'});
+  const larg = 180, alt = cv.height * larg / cv.width, escala = Math.min(1, 277 / alt);
+  pdf.addImage(cv.toDataURL('image/jpeg', .9), 'JPEG', 15 + (larg - larg * escala) / 2, 10, larg * escala, alt * escala);
+  return new File([pdf.output('blob')], `${nome}.pdf`, {type:'application/pdf'});
+}
+async function compartilharDoc(doc, nome, tipo){
+  toast(tipo === 'pdf' ? 'Gerando PDF…' : 'Gerando imagem…');
+  let arq;
+  try { arq = await gerarArquivo(doc, nome || 'documento', tipo); }
+  catch(e){ toast(e.message, 'bad'); return; }
+  try {
+    if(navigator.canShare && navigator.canShare({files:[arq]})){ await navigator.share({files:[arq], title: arq.name}); return; }
+  } catch(e){ if(e.name === 'AbortError') return; }
+  const url = URL.createObjectURL(arq);
+  if(tipo === 'pdf'){ const a = document.createElement('a'); a.href = url; a.download = arq.name; document.body.appendChild(a); a.click(); a.remove(); toast('PDF baixado.'); }
+  else abrirFolha(`<h2>${esc(nome)}</h2><img class="grande" src="${url}" alt="Imagem de ${esc(nome)}"><p class="ajuda">Toque e segure a imagem para salvar ou enviar.</p>`);
+}
+
+/* ===================== Assinatura ===================== */
+function padAssinatura(canvas){
+  const ctx = canvas.getContext('2d'); let des = false, vazio = true, ult;
+  const r0 = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  canvas.width = r0.width * dpr; canvas.height = r0.height * dpr; ctx.scale(dpr, dpr);
+  ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#10221F';
+  const pos = e => { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  canvas.addEventListener('pointerdown', e => { des = true; ult = pos(e); try { canvas.setPointerCapture(e.pointerId); } catch(_){} e.preventDefault(); });
+  canvas.addEventListener('pointermove', e => { if(!des) return; const p = pos(e); ctx.beginPath(); ctx.moveTo(...ult); ctx.lineTo(...p); ctx.stroke(); ult = p; vazio = false; });
+  const fim = () => des = false; canvas.addEventListener('pointerup', fim); canvas.addEventListener('pointercancel', fim);
+  return { limpar(){ ctx.clearRect(0, 0, canvas.width, canvas.height); vazio = true; }, vazio: () => vazio,
+    png(){ const o = document.createElement('canvas'); o.width = canvas.width; o.height = canvas.height; const g = o.getContext('2d');
+      g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, o.width, o.height); g.drawImage(canvas, 0, 0); return o.toDataURL('image/jpeg', .7); } };
+}
+
+/* ===================== Telas ===================== */
+const VIEWS = {};
+let PIN = '', FILTRO_R = 'Aguardando retirada', FILTRO_C = 'pend', FILTRO_CA = 'pend', instalarEvt = null;
+
+VIEWS.login = {
+  html: () => {
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent), standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    return `<section class="login">
+    <h1>Abastecimento</h1><p>Digite seu PIN de 4 números</p>
+    <div class="pontos" id="pontos">${[0,1,2,3].map(() => '<i></i>').join('')}</div>
+    <p class="erro" id="pinErro" hidden></p>
+    <div class="teclado">${['1','2','3','4','5','6','7','8','9','','0','⌫'].map(k => `<button type="button" class="${k ? '' : 'vz'}" data-k="${k}" aria-label="${k === '⌫' ? 'Apagar' : k}">${k}</button>`).join('')}</div>
+    ${!standalone ? `<div class="instalar"><b style="color:var(--ink)">Instale na tela inicial</b>
+      ${ios ? '<span>No iPhone: toque em <b>Compartilhar</b> (quadrado com seta) e depois em <b>Adicionar à Tela de Início</b>.</span>'
+            : '<span>Assim o app abre como os outros, até sem internet.</span><button class="btn btn-sec btn-mini" id="btInstalar" hidden>Instalar o app</button><span id="instDica">No Chrome: menu ⋮ → <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</span>'}</div>` : ''}
+    <span class="versao">Versão ${CONFIG.VERSAO}</span>
+  </section>`; },
+  bind(m){
+    const pontos = () => $$('#pontos i', m).forEach((i, n) => i.classList.toggle('f', n < PIN.length));
+    const erro = msg => { const p = $('#pontos', m); p.classList.remove('erro-pin'); void p.offsetWidth; p.classList.add('erro-pin');
+      const e = $('#pinErro', m); e.textContent = msg; e.hidden = false; PIN = ''; setTimeout(pontos, 300); };
+    let entrando = false;
+    $('.teclado', m).addEventListener('click', async e => {
+      const k = e.target.closest('button')?.dataset.k; if(!k || entrando) return;
+      $('#pinErro', m).hidden = true;
+      if(k === '⌫') PIN = PIN.slice(0, -1); else if(PIN.length < 4) PIN += k;
+      pontos();
+      if(PIN.length === 4){
+        entrando = true; const pin = PIN;
+        try {
+          const d = await api('login', {pin});
+          if(!d.usuario.perfis.length){ erro('Seu usuário está sem perfil na planilha. Fale com o responsável.'); return; }
+          S.sessao = {pin, ...d, em: new Date().toISOString()}; S.cache = {}; salvarSessao(); salvarCache(); PIN = '';
+          go(abas()[0][0]); processarFila();
+        } catch(err){ erro(err.rede ? 'Sem internet. O primeiro acesso precisa de internet.' : err.message); }
+        finally { entrando = false; }
+      }
+    });
+    const bi = $('#btInstalar', m);
+    if(bi && instalarEvt){ bi.hidden = false; $('#instDica', m).hidden = true;
+      bi.onclick = async () => { instalarEvt.prompt(); await instalarEvt.userChoice; instalarEvt = null; bi.hidden = true; }; }
+  }
+};
+
+let F = {};
+VIEWS['m-novo'] = {
+  html(){
+    F = {fotoPainel:null, fotoCupom:null};
+    const c = S.sessao.cadastros, auto = S.sessao.config.aprovAuto;
+    return `<h1 class="tit">Novo abastecimento</h1><p class="sub">Preencha no posto. Funciona sem internet.</p>
+    <form id="fAb" novalidate>
+      <div class="campo" id="cVeic"><label class="rot" for="veic">Veículo</label>
+        <select id="veic"><option value="">Escolha pela placa</option>${c.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.placa)} · ${esc(v.veiculo)}</option>`).join('')}<option value="OUTRO">Outro (não cadastrado)</option></select>
+        <div class="info-veic" id="infoVeic" hidden></div>
+        <div class="grid2" id="blocoOutro" hidden><input type="text" id="veicOutro" placeholder="Veículo e placa" aria-label="Veículo e placa"><select id="fazOutro" aria-label="Fazenda"><option value="">Fazenda</option>${c.fazendas.map(f => `<option>${esc(f)}</option>`).join('')}</select></div></div>
+      <fieldset class="campo" id="cMed"><div class="medidor">
+        <span class="rot" id="rotMed">Km / Horímetro</span>
+        <div class="med-linha"><input type="text" id="medidor" inputmode="decimal" placeholder="Número do painel" aria-labelledby="rotMed">
+          <label class="foto" id="lbFotoPainel" for="fotoPainel">${ICON.camera}<span>Foto do painel</span></label></div>
+        <input type="file" id="fotoPainel" accept="image/*" capture="environment" hidden>
+        <p class="ajuda">Digite o número do painel ou tire a foto. Pode fazer os dois.</p></div></fieldset>
+      <div class="campo" id="cPosto"><label class="rot" for="posto">Posto</label><input type="text" id="posto" list="lPostos" placeholder="Nome do posto e cidade" autocomplete="off">
+        <datalist id="lPostos">${c.postos.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      <div class="campo"><label class="rot" for="comb">Combustível</label><select id="comb">${c.combustiveis.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
+      <div class="grid2">
+        <div class="campo" id="cLit"><label class="rot" for="litros">Litros</label><input type="text" id="litros" inputmode="decimal" class="num" placeholder="0,0"></div>
+        <div class="campo"><label class="rot" for="valor">Valor total <em>(opcional)</em></label><input type="text" id="valor" inputmode="decimal" class="num" placeholder="R$ 0,00"></div>
+      </div>
+      <div class="preco" id="preco" hidden>Preço por litro: <b id="precoV"></b></div>
+      <div class="campo"><span class="rot">Cupom ou nota <em>(opcional)</em></span>
+        <label class="foto foto-larga" id="lbFotoCupom" for="fotoCupom">${ICON.camera}<span>Foto do cupom</span></label>
+        <input type="file" id="fotoCupom" accept="image/*" capture="environment" hidden></div>
+      <div class="campo"><label class="rot" for="obs">Observação <em>(opcional)</em></label><textarea id="obs" placeholder="Ex.: completou o tanque"></textarea></div>
+      <button class="btn btn-pri btn-bloco" type="submit" id="btEnviar">${ICON.bomba} ${auto ? 'Registrar abastecimento' : 'Enviar para aprovação'}</button>
+    </form>`;
+  },
+  bind(m){
+    const f = $('#fAb', m), c = S.sessao.cadastros;
+    $('#veic', m).onchange = e => {
+      const v = c.veiculos.find(x => x.placa === e.target.value), info = $('#infoVeic', m);
+      $('#blocoOutro', m).hidden = e.target.value !== 'OUTRO';
+      info.hidden = !v;
+      if(v) info.innerHTML = `<span>Fazenda <b>${esc(v.fazenda)}</b></span><span>Leitura por <b>${nomeMed(v.leitura)}</b></span>`;
+      $('#rotMed', m).textContent = v ? `${nomeMed(v.leitura)} atual` : 'Km / Horímetro';
+      $('#medidor', m).placeholder = v ? (v.leitura === 'Horímetro' ? 'Ex.: 1.234,5' : 'Ex.: 84.655') : 'Número do painel';
+    };
+    const foto = (inp, lb, chave, rotulo) => $(inp, m).onchange = async e => {
+      const file = e.target.files[0]; if(!file) return;
+      try { F[chave] = await comprimir(file); const l = $(lb, m); l.classList.add('tem'); l.innerHTML = `<img src="${F[chave]}" alt=""><span>${rotulo} ✓<br><small style="font-weight:500;text-transform:none">trocar</small></span>`; }
+      catch(_){ toast('Não consegui ler essa foto. Tente de novo.', 'bad'); }
+    };
+    foto('#fotoPainel', '#lbFotoPainel', 'fotoPainel', 'Painel'); foto('#fotoCupom', '#lbFotoCupom', 'fotoCupom', 'Cupom');
+    const preco = () => { const l = num($('#litros', m).value), v = num($('#valor', m).value);
+      const ok = l > 0 && v > 0; $('#preco', m).hidden = !ok; if(ok) $('#precoV', m).textContent = fmtR(v / l); };
+    $('#litros', m).oninput = preco; $('#valor', m).oninput = preco;
+    f.onsubmit = async e => {
+      e.preventDefault(); limparErros(f); let ok = true; const err = (cc, msg) => { marcarErro($(cc, m), msg); ok = false; };
+      const placa = $('#veic', m).value, outro = $('#veicOutro', m).value.trim(), fazOutro = $('#fazOutro', m).value;
+      if(!placa) err('#cVeic', 'Escolha o veículo.');
+      else if(placa === 'OUTRO' && (!outro || !fazOutro)) err('#cVeic', 'Descreva o veículo e escolha a fazenda.');
+      const litros = num($('#litros', m).value), lim = S.sessao.config.limiteLitros || 1500;
+      if(!(litros > 0)) err('#cLit', 'Informe os litros.'); else if(litros > lim) err('#cLit', `Mais de ${fmtN(lim)} L? Confira o número.`);
+      if(!$('#posto', m).value.trim()) err('#cPosto', 'Informe o posto.');
+      const mv = $('#medidor', m).value.trim();
+      if(mv){ const n = num(mv); if(isNaN(n) || n < 0) err('#cMed', 'Leitura inválida. Use só números.'); }
+      else if(!F.fotoPainel) err('#cMed', 'Digite a leitura ou tire a foto do painel.');
+      if(!ok){ rolarErro(m); return; }
+      const reg = { idApp: uid(), lancadoEm: new Date().toISOString(), placa, veiculoOutro: placa === 'OUTRO' ? outro : '', fazenda: placa === 'OUTRO' ? fazOutro : '',
+        tipoLeitura: 'Km', leitura: mv, fotoPainel: F.fotoPainel || '', posto: $('#posto', m).value.trim(), combustivel: $('#comb', m).value,
+        litros: $('#litros', m).value.trim(), valor: $('#valor', m).value.trim(), fotoCupom: F.fotoCupom || '', obs: $('#obs', m).value.trim() };
+      const item = {idApp: reg.idApp, pin: S.sessao.pin, reg, criadoEm: reg.lancadoEm};
+      await ocupado($('#btEnviar', m), 'Enviando…', async () => {
+        await fila.por(item); // guarda antes de tentar: se o app fechar no meio, não perde
+        try {
+          const rec = await apiPin('registrarAbastecimento', {reg});
+          await fila.tirar(reg.idApp); guardarMeu(rec);
+          go(temPerfil('motorista') ? 'm-lista' : 'm-novo'); abrirComprovante(rec);
+        } catch(er){
+          if(er.rede){ go(temPerfil('motorista') ? 'm-lista' : 'm-novo'); abrirComprovante(deFila(item)); toast('Sem internet: guardado no celular. Envia sozinho quando o sinal voltar.'); }
+          else { await fila.tirar(reg.idApp); toast(er.message, 'bad'); }
+        }
+      });
+    };
+  }
+};
+
+VIEWS['m-lista'] = {
+  async load(){
+    await processarFila();
+    const meus = await comCache('meus', () => apiPin('meusLancamentos'));
+    const naFila = (await fila.todos()).filter(i => i.pin === S.sessao.pin).map(deFila);
+    return {meus, naFila};
+  },
+  html: ({meus, naFila}) => `<div class="cab"><h1 class="tit">Meus lançamentos</h1><button class="btn btn-sec btn-mini" data-go="m-lista">Atualizar</button></div>
+    <div class="lista">${naFila.concat(meus).length ? naFila.concat(meus).map(a => itemAbast(a)).join('') : '<div class="vazio">Nenhum abastecimento ainda.<br>Use a aba <b>Lançar</b> depois de abastecer.</div>'}</div>`,
+  bind(m, D){ m.onclick = e => { const b = e.target.closest('[data-abast]'); if(!b) return;
+    const a = D.naFila.concat(D.meus).find(x => (x.numero || x.idApp) === b.dataset.abast); if(a) abrirComprovante(a); }; }
+};
+
+VIEWS['r-aprovar'] = {
+  load: () => comCache('aprov', () => apiPin('pendentesAprovacao')),
+  html: D => `<div class="cab"><h1 class="tit">Aprovar</h1><button class="btn btn-sec btn-mini" data-go="r-aprovar">Atualizar</button></div>
+    <section class="painel"><label class="check" for="swAuto"><input type="checkbox" id="swAuto" ${D.aprovAuto ? 'checked' : ''}>
+      <span><b>Aprovação automática</b><br><span class="ajuda">${D.aprovAuto ? 'Ligada: todo lançamento já sai aprovado.' : 'Desligada: cada lançamento espera a sua aprovação.'}</span></span></label></section>
+    <div class="lista">${D.pendentes.length ? D.pendentes.map(a => `<section class="painel" data-ap="${esc(a.numero)}">
+        <div class="cab"><span class="item-num">${esc(a.numero)}</span>${chip('warn', 'Aguardando')}</div>
+        <div><div class="item-tit">${esc(a.motorista)} · ${esc(a.veiculo)}${a.placa ? ' · ' + esc(a.placa) : ''}</div>
+          <div class="item-meta">Fazenda ${esc(a.fazenda || '—')} · <b class="num">${fmtL(a.litros)} L</b> de ${esc(a.combustivel)} · ${esc(a.posto)} · ${fmtData(a.lancadoEm)}</div>
+          ${a.obs ? `<div class="item-meta">Obs.: ${esc(a.obs)}</div>` : ''}</div>
+        <textarea class="motivo" placeholder="Motivo da recusa" aria-label="Motivo da recusa" hidden></textarea>
+        <div class="acoes"><button class="btn btn-pri" data-acao="aprovar">Aprovar</button><button class="btn btn-perigo" data-acao="recusar">Recusar</button></div></section>`).join('')
+      : `<div class="vazio">Nada esperando aprovação.${D.aprovAuto ? '<br>Com a aprovação automática ligada, os lançamentos já saem aprovados.' : ''}</div>`}</div>
+    ${D.recentes.length ? `<span class="rot">Últimas decisões</span><div class="lista">${D.recentes.map(a => itemAbast(a)).join('')}</div>` : ''}`,
+  bind(m, D){
+    $('#swAuto', m).onchange = async e => {
+      const ligada = e.target.checked;
+      try { await apiPin('definirAprovacaoAutomatica', {ligada}); S.sessao.config.aprovAuto = ligada; salvarSessao();
+        toast(ligada ? 'Aprovação automática ligada.' : 'Desligada: os próximos lançamentos vão esperar aprovação.'); render(); }
+      catch(er){ e.target.checked = !ligada; toast(er.message, 'bad'); }
+    };
+    $$('[data-ap]', m).forEach(sec => {
+      const numero = sec.dataset.ap, mot = $('.motivo', sec), rec = $('[data-acao="recusar"]', sec);
+      $('[data-acao="aprovar"]', sec).onclick = ev => ocupado(ev.currentTarget, 'Aprovando…', async () => {
+        try { await apiPin('decidirAprovacao', {numero, decisao:'aprovar'}); toast(`${numero} aprovado.`); render(); } catch(er){ toast(er.message, 'bad'); } });
+      rec.onclick = () => {
+        if(mot.hidden){ mot.hidden = false; mot.focus(); rec.textContent = 'Confirmar recusa'; return; }
+        if(mot.value.trim().length < 3){ toast('Escreva o motivo da recusa.', 'bad'); mot.focus(); return; }
+        ocupado(rec, 'Recusando…', async () => {
+          try { await apiPin('decidirAprovacao', {numero, decisao:'recusar', motivo: mot.value.trim()}); toast(`${numero} recusado.`); render(); } catch(er){ toast(er.message, 'bad'); } });
+      };
+    });
+    m.querySelectorAll('[data-abast]').forEach(b => b.onclick = () => { const a = D.recentes.find(x => x.numero === b.dataset.abast); if(a) abrirComprovante(a); });
+  }
+};
+
+VIEWS['r-novo'] = {
+  html(){
+    const c = S.sessao.cadastros;
+    return `<h1 class="tit">Autorizar terceiro</h1><p class="sub">Gera a requisição para enviar ao terceiro. Ele assina no posto ao retirar. Precisa de internet.</p>
+    <form id="fAt" novalidate>
+      <div class="campo" id="cNome"><label class="rot" for="tNome">Nome de quem vai retirar</label><input type="text" id="tNome" autocomplete="off" placeholder="Nome completo"></div>
+      <div class="grid2">
+        <div class="campo" id="cCpf"><label class="rot" for="tCpf">CPF</label><input type="text" id="tCpf" inputmode="numeric" class="num" placeholder="000.000.000-00" maxlength="14"></div>
+        <div class="campo" id="cPlaca"><label class="rot" for="tPlaca">Placa</label><input type="text" id="tPlaca" class="num" placeholder="ABC1D23" maxlength="8" style="text-transform:uppercase"></div>
+      </div>
+      <div class="campo"><span class="rot">Tipo de retirada</span>
+        <div class="seg" id="segTipo"><button type="button" data-v="veiculo" class="on">No tanque do veículo</button><button type="button" data-v="galoes">Galões p/ fazenda</button></div></div>
+      <div class="grid2">
+        <div class="campo" id="cGal" hidden><label class="rot" for="tGal">Nº de galões</label><input type="text" id="tGal" inputmode="numeric" class="num" placeholder="Ex.: 4"></div>
+        <div class="campo" id="cTFaz"><label class="rot" for="tFaz" id="rotFaz">Fazenda (custo)</label><select id="tFaz"><option value="">Escolha</option>${c.fazendas.map(f => `<option>${esc(f)}</option>`).join('')}</select></div>
+      </div>
+      <div class="campo" id="cTPosto"><label class="rot" for="tPosto">Posto</label><input type="text" id="tPosto" list="lPostos2" autocomplete="off" placeholder="Nome do posto e cidade">
+        <datalist id="lPostos2">${c.postos.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      <div class="grid2">
+        <div class="campo"><label class="rot" for="tComb">Combustível</label><select id="tComb">${c.combustiveis.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
+        <div class="campo" id="cLim"><label class="rot" for="tLim">Limite (litros)</label><input type="text" id="tLim" inputmode="decimal" class="num" placeholder="Ex.: 150"></div>
+      </div>
+      <div class="campo" id="cVal"><label class="rot" for="tVal">Válida até</label><input type="date" id="tVal" value="${hojeISO()}" min="${hojeISO()}"></div>
+      <div class="campo" id="cJust"><label class="rot" for="tJust">Justificativa</label><textarea id="tJust" placeholder="Por que esta pessoa vai abastecer por conta da empresa? Ex.: frete de calcário para a Fazenda Chapecó"></textarea></div>
+      <button class="btn btn-pri btn-bloco" type="submit" id="btEmitir">${ICON.assin} Emitir requisição</button>
+    </form>`;
+  },
+  bind(m){
+    const f = $('#fAt', m); let tipo = 'veiculo';
+    seg($('#segTipo', m), v => { tipo = v; $('#cGal', m).hidden = v !== 'galoes'; $('#rotFaz', m).textContent = v === 'galoes' ? 'Fazenda destino' : 'Fazenda (custo)'; });
+    $('#tCpf', m).oninput = e => { const d = e.target.value.replace(/\D/g, '').slice(0, 11);
+      e.target.value = d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'); };
+    $('#tPlaca', m).oninput = e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+    f.onsubmit = async e => {
+      e.preventDefault(); limparErros(f); let ok = true; const err = (c, msg) => { marcarErro($(c, m), msg); ok = false; };
+      const v = id => $(id, m).value.trim();
+      if(v('#tNome').length < 3) err('#cNome', 'Informe o nome completo.');
+      if(v('#tCpf').replace(/\D/g, '').length !== 11) err('#cCpf', 'CPF com 11 números.');
+      if(v('#tPlaca').length < 7) err('#cPlaca', 'Placa com 7 caracteres.');
+      if(!v('#tPosto')) err('#cTPosto', 'Informe o posto.');
+      if(tipo === 'galoes' && !(parseInt(v('#tGal'), 10) > 0)) err('#cGal', 'Quantos galões?');
+      if(!v('#tFaz')) err('#cTFaz', 'Escolha a fazenda.');
+      if(!(num(v('#tLim')) > 0)) err('#cLim', 'Informe o limite em litros.');
+      if(!v('#tVal') || v('#tVal') < hojeISO()) err('#cVal', 'A validade não pode ser no passado.');
+      if(v('#tJust').length < 10) err('#cJust', 'Explique o motivo (mínimo 10 letras).');
+      if(!ok){ rolarErro(m); return; }
+      await ocupado($('#btEmitir', m), 'Emitindo…', async () => {
+        try {
+          const a = await apiPin('emitirAutorizacao', {dados: {nome: v('#tNome'), cpf: v('#tCpf'), placa: v('#tPlaca'), tipo, galoes: v('#tGal'), fazenda: v('#tFaz'),
+            posto: v('#tPosto'), combustivel: v('#tComb'), limite: v('#tLim'), validade: v('#tVal'), justificativa: v('#tJust')}});
+          S.cache.auts = [a].concat(S.cache.auts || []); salvarCache();
+          toast(`${a.numero} emitida. Envie para ${a.terceiro.split(' ')[0]}.`); go('req', a.numero);
+        } catch(er){ toast(er.rede ? 'Sem internet. Para emitir a requisição precisa de sinal (o número vem do servidor).' : er.message, 'bad'); }
+      });
+    };
+  }
+};
+
+VIEWS['r-lista'] = {
+  load: () => comCache('auts', () => apiPin('listarAutorizacoes')),
+  html(L){
+    const SITS = ['Aguardando retirada', 'Retirada confirmada', 'Vencida', 'Cancelada', 'Todas'];
+    const cont = k => L.filter(a => k === 'Todas' || a.situacao === k).length;
+    const lst = L.filter(a => FILTRO_R === 'Todas' || a.situacao === FILTRO_R);
+    const curto = {'Aguardando retirada':'Aguardando', 'Retirada confirmada':'Retiradas', 'Vencida':'Vencidas', 'Cancelada':'Canceladas', 'Todas':'Todas'};
+    return `<div class="cab"><h1 class="tit">Autorizações</h1><button class="btn btn-sec btn-mini" data-go="r-lista">Atualizar</button></div>
+      <div class="filtros" id="filR">${SITS.map(k => `<button data-f="${k}" class="${FILTRO_R === k ? 'on' : ''}">${curto[k]}<b>${cont(k)}</b></button>`).join('')}</div>
+      <div class="lista">${lst.length ? lst.map(itemAut).join('') : '<div class="vazio">Nada aqui.</div>'}</div>`;
+  },
+  bind(m){
+    $('#filR', m).onclick = e => { const b = e.target.closest('button'); if(b){ FILTRO_R = b.dataset.f; render(); } };
+    m.querySelectorAll('[data-aut]').forEach(b => b.onclick = () => go('req', b.dataset.aut));
+  }
+};
+
+VIEWS.req = {
+  async load(){
+    let a = (S.cache.auts || []).find(x => x.numero === PARAM);
+    if(!a){ const l = await comCache('auts', () => apiPin('listarAutorizacoes')); a = l.find(x => x.numero === PARAM); }
+    if(!a) throw new Error('Requisição não encontrada.');
+    return a;
+  },
+  html: a => `<button class="voltar" data-go="r-lista">‹ Autorizações</button>${ticketHTML(a)}
+    <div class="acoes">
+      <a class="btn btn-wa larga" href="${waLink(textoAut(a))}" target="_blank" rel="noopener">${ICON.wa} Enviar pelo WhatsApp</a>
+      <button class="btn btn-sec" id="bImg">${ICON.share} Imagem</button>
+      <button class="btn btn-sec" id="bPdf">${ICON.pdf} PDF</button>
+      <button class="btn btn-sec" id="bTxt">Copiar mensagem</button>
+      <a class="btn btn-sec" href="${esc(linkReq(a))}" target="_blank" rel="noopener">Abrir link</a>
+      ${a.situacao === 'Aguardando retirada' ? '<button class="btn btn-perigo larga" id="bCanc">Cancelar requisição</button>' : ''}
+    </div>
+    <div class="aviso"><b>Como funciona</b><br>Mande pelo WhatsApp. No posto, o terceiro abre o link, informa os litros e assina na tela. O frentista confere pelo QR code. A requisição só pode ser usada uma vez.</div>`,
+  bind(m, a){
+    desenharQRs(m);
+    $('#bImg', m).onclick = () => compartilharDoc(docAut(a), a.numero, 'imagem');
+    $('#bPdf', m).onclick = () => compartilharDoc(docAut(a), a.numero, 'pdf');
+    $('#bTxt', m).onclick = () => copiar(textoAut(a));
+    const c = $('#bCanc', m);
+    if(c) c.onclick = () => duploToque(c, () => ocupado(c, 'Cancelando…', async () => {
+      try { const n = await apiPin('cancelarAutorizacao', {numero: a.numero}); S.cache.auts = (S.cache.auts || []).map(x => x.numero === n.numero ? n : x); salvarCache(); toast(`${a.numero} cancelada.`); render(); }
+      catch(er){ toast(er.message, 'bad'); } }));
+  }
+};
+
+let PAD = null, ASSINATURA_FEITA = null;
+VIEWS.publico = {
+  load: () => api('requisicaoPublica', {codigo: PARAM}),
+  html(a){
+    const st = a.situacao;
+    let topoH;
+    if(st === 'Aguardando retirada') topoH = `<div class="estado-grande warn">Válida · pode abastecer<small>Até ${fmtN(a.limite)} L de ${esc(a.combustivel)} · válida até ${fmtData(a.validaAte)}</small></div>`;
+    else if(st === 'Retirada confirmada') topoH = `<div class="estado-grande ${ASSINATURA_FEITA ? 'ok' : 'bad'}">${ASSINATURA_FEITA ? 'Retirada confirmada' : 'Já utilizada'}<small>${ASSINATURA_FEITA ? 'Obrigado! A empresa já recebeu a confirmação.' : `Retirada confirmada em ${fmtData(a.retirada.em)}. Não abastecer de novo.`}</small></div>`;
+    else if(st === 'Vencida') topoH = `<div class="estado-grande bad">Vencida<small>Válida só até ${fmtData(a.validaAte)}. Não abastecer.</small></div>`;
+    else topoH = `<div class="estado-grande bad">Cancelada<small>Esta requisição foi cancelada pela empresa. Não abastecer.</small></div>`;
+    const form = st !== 'Aguardando retirada' ? '' : `<section class="painel"><h2>Confirmar retirada</h2>
+      <form id="fRet" novalidate>
+        <div class="grid2">
+          <div class="campo" id="cRL"><label class="rot" for="rLit">Litros retirados</label><input type="text" id="rLit" inputmode="decimal" class="num" placeholder="Até ${fmtN(a.limite)}"></div>
+          <div class="campo"><label class="rot" for="rKm">Km do veículo <em>(opcional)</em></label><input type="text" id="rKm" inputmode="numeric" class="num" placeholder="Ex.: 231.870"></div>
+        </div>
+        <div class="campo" id="cRN"><label class="rot" for="rNome">Seu nome</label><input type="text" id="rNome" value="${esc(a.terceiro)}"></div>
+        <div class="campo" id="cAss"><span class="rot">Assinatura</span>
+          <div class="assin"><canvas id="cv" aria-label="Área para assinar com o dedo"></canvas><div class="linha"></div><span class="dica">Assine com o dedo</span><button type="button" class="limpar" id="limpar">Limpar</button></div></div>
+        <div class="campo" id="cChk"><label class="check"><input type="checkbox" id="rChk"><span>Confirmo que retirei o combustível acima em nome de ${esc(a.empresa)}, conforme esta requisição.</span></label></div>
+        <button class="btn btn-pri btn-bloco" type="submit" id="btRet">Confirmar retirada</button>
+      </form></section>`;
+    const docs = st === 'Retirada confirmada' && ASSINATURA_FEITA ? `<div class="acoes"><button class="btn btn-sec" id="pImg">${ICON.share} Imagem</button><button class="btn btn-sec" id="pPdf">${ICON.pdf} PDF</button></div>` : '';
+    return topoH + ticketHTML(a, ASSINATURA_FEITA) + docs + form;
+  },
+  bind(m, a){
+    desenharQRs(m);
+    const pi = $('#pImg', m), pp = $('#pPdf', m);
+    if(pi) pi.onclick = () => compartilharDoc({...docAut(a, ASSINATURA_FEITA), empresa: a.empresa}, a.numero, 'imagem');
+    if(pp) pp.onclick = () => compartilharDoc({...docAut(a, ASSINATURA_FEITA), empresa: a.empresa}, a.numero, 'pdf');
+    const f = $('#fRet', m); if(!f) return;
+    PAD = padAssinatura($('#cv', m)); $('#limpar', m).onclick = () => PAD.limpar();
+    f.onsubmit = async e => {
+      e.preventDefault(); limparErros(f); let ok = true; const err = (c, msg) => { marcarErro($(c, m), msg); ok = false; };
+      const lit = num($('#rLit', m).value);
+      if(!(lit > 0)) err('#cRL', 'Informe os litros.'); else if(lit > a.limite) err('#cRL', `Acima do limite autorizado de ${fmtN(a.limite)} L.`);
+      if($('#rNome', m).value.trim().length < 3) err('#cRN', 'Informe seu nome.');
+      if(PAD.vazio()) err('#cAss', 'Assine no quadro acima.');
+      if(!$('#rChk', m).checked) err('#cChk', 'Marque a confirmação.');
+      if(!ok){ rolarErro(m); return; }
+      const assinatura = PAD.png();
+      await ocupado($('#btRet', m), 'Confirmando…', async () => {
+        try { await api('confirmarRetirada', {codigo: PARAM, litros: $('#rLit', m).value, km: $('#rKm', m).value, nome: $('#rNome', m).value.trim(), assinatura});
+          ASSINATURA_FEITA = assinatura; toast('Retirada confirmada. Obrigado!'); window.scrollTo(0, 0); render(); }
+        catch(er){ toast(er.rede ? 'Sem internet. Para confirmar a retirada precisa de sinal. Tente de novo.' : er.message, 'bad'); }
+      });
+    };
+  }
+};
+
+VIEWS['c-abast'] = {
+  load: () => comCache('conf', () => apiPin('listarConferencia')),
+  html(D){
+    const pend = D.abastPendentes.slice().sort((a, b) => a.lancadoEm.localeCompare(b.lancadoEm)), confs = D.abastConferidos;
+    const alertas = pend.filter(a => (analise(a) || {}).tipo === 'alerta').length;
+    const lst = FILTRO_C === 'pend' ? pend : confs;
+    return `<div class="cab"><h1 class="tit">Conferir</h1><button class="btn btn-sec btn-mini" data-go="c-abast">Atualizar</button></div>
+      <div class="resumo"><span><b>${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.litros, 0))}</b> L</span>${alertas ? chip('bad', `${alertas} fora do padrão`) : chip('ok', 'Sem alertas')}</div>
+      <div class="filtros" id="filC">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidos (últimos)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_C === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
+      <div class="lista">${lst.length ? lst.map(a => itemAbast(a, true)).join('') : '<div class="vazio">Tudo conferido por aqui.</div>'}</div>`;
+  },
+  bind(m){
+    $('#filC', m).onclick = e => { const b = e.target.closest('button'); if(b){ FILTRO_C = b.dataset.f; render(); } };
+    m.querySelectorAll('[data-abast]').forEach(b => b.onclick = () => go('c-det', b.dataset.abast));
+  }
+};
+
+VIEWS['c-det'] = {
+  async load(){
+    const D = S.cache.conf || await comCache('conf', () => apiPin('listarConferencia'));
+    const a = D.abastPendentes.concat(D.abastConferidos).find(x => x.numero === PARAM);
+    if(!a) throw new Error('Lançamento não encontrado. Toque em Atualizar na lista.');
+    return a;
+  },
+  html(a){
+    const [t, s] = stAbast(a), an = analise(a), nm = nomeMed(a.tipoLeitura);
+    return `<button class="voltar" data-go="c-abast">‹ Conferir</button>
+      <div class="cab"><h1 class="tit" style="font-family:var(--f-num);font-size:26px">${esc(a.numero)}</h1>${chip(t, s)}</div>
+      ${dadosAbast(a, true)}
+      ${an ? `<div class="analise ${an.tipo}"><strong>${esc(an.tit)}</strong><span>${esc(an.txt)}</span>${an.nums ? `<span class="nums">${esc(an.nums)}</span>` : ''}</div>` : ''}
+      <section class="painel"><h2>Conferência</h2>
+        <form id="fConf" novalidate>
+          ${a.placa ? `<div class="campo"><label class="rot" for="cMedV">${nm} conferido</label><input type="text" id="cMedV" inputmode="decimal" class="num" value="${(a.leituraConferida ?? a.leitura) != null ? fmtN(a.leituraConferida ?? a.leitura) : ''}" placeholder="Leia na foto do painel"><p class="ajuda">Corrija aqui se o número digitado não bate com a foto.</p></div>` : ''}
+          <div class="campo"><label class="rot" for="cObs">Observação da conferência</label><textarea id="cObs" placeholder="Ex.: Km corrigido pela foto">${esc(a.obsConferencia || '')}</textarea></div>
+          <div class="acoes"><button type="button" class="btn btn-pri" id="bOk">${ICON.conf} Conferido</button><button type="button" class="btn btn-perigo" id="bDiv">Divergência</button></div>
+        </form></section>`;
+  },
+  bind(m, a){
+    const salvar = (status, btn) => ocupado(btn, 'Salvando…', async () => {
+      try {
+        const rec = await apiPin('conferirAbastecimento', {numero: a.numero, status, leitura: $('#cMedV', m) ? $('#cMedV', m).value : '', obs: $('#cObs', m).value.trim()});
+        const D = S.cache.conf; rec.anterior = a.anterior;
+        D.abastPendentes = D.abastPendentes.filter(x => x.numero !== a.numero); D.abastConferidos = [rec].concat(D.abastConferidos.filter(x => x.numero !== a.numero)); salvarCache();
+        toast(`${a.numero} ${status === 'ok' ? 'conferido' : 'marcado com divergência'}.`); go('c-abast');
+      } catch(er){ toast(er.message, 'bad'); }
+    });
+    $('#bOk', m).onclick = e => salvar('ok', e.currentTarget); $('#bDiv', m).onclick = e => salvar('div', e.currentTarget);
+  }
+};
+
+VIEWS['c-aut'] = {
+  load: () => comCache('conf', () => apiPin('listarConferencia')),
+  html(D){
+    const pend = D.retiradasPendentes, confs = D.retiradasConferidas, lst = FILTRO_CA === 'pend' ? pend : confs;
+    return `<div class="cab"><h1 class="tit">Retiradas de terceiros</h1><button class="btn btn-sec btn-mini" data-go="c-aut">Atualizar</button></div>
+      <div class="resumo"><span><b>${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.retirada.litros, 0))}</b> L</span></div>
+      <div class="filtros" id="filCA">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidas (últimas)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_CA === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
+      <div class="lista">${lst.length ? lst.map(itemAut).join('') : '<div class="vazio">Nada aqui.</div>'}</div>`;
+  },
+  bind(m, D){
+    $('#filCA', m).onclick = e => { const b = e.target.closest('button'); if(b){ FILTRO_CA = b.dataset.f; render(); } };
+    m.querySelectorAll('[data-aut]').forEach(b => b.onclick = () => {
+      const a = D.retiradasPendentes.concat(D.retiradasConferidas).find(x => x.numero === b.dataset.aut); if(!a) return;
+      abrirFolha(`${ticketHTML(a)}<section class="painel"><h2>Conferência</h2>
+        ${a.conferencia ? `<p class="ajuda">${esc(a.conferencia)} por ${esc(a.conferidoPor)}.</p>` : ''}
+        <p class="ajuda">Retirou ${fmtL(a.retirada.litros)} L de ${fmtN(a.limite)} L autorizados.${a.pdf ? ` <a href="${esc(a.pdf)}" target="_blank" rel="noopener" style="color:var(--link)">Abrir PDF com assinatura</a>` : ''}</p>
+        <div class="campo"><label class="rot" for="caObs">Observação</label><textarea id="caObs">${esc(a.obsConferencia || '')}</textarea></div>
+        <button class="btn btn-pri btn-bloco" id="caOk">${ICON.conf} Marcar como conferida</button></section>`, bb => {
+        desenharQRs(bb);
+        $('#caOk', bb).onclick = e => ocupado(e.currentTarget, 'Salvando…', async () => {
+          try { const rec = await apiPin('conferirAutorizacao', {numero: a.numero, obs: $('#caObs', bb).value.trim()});
+            D.retiradasPendentes = D.retiradasPendentes.filter(x => x.numero !== a.numero); D.retiradasConferidas = [rec].concat(D.retiradasConferidas.filter(x => x.numero !== a.numero));
+            S.cache.conf = D; salvarCache(); fecharFolha(); toast(`${a.numero} conferida.`); render(); }
+          catch(er){ toast(er.message, 'bad'); } });
+      });
+    });
+  }
+};
+
+/* ===================== Eventos globais ===================== */
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-go]'); if(g){ go(g.dataset.go, g.dataset.p || null); return; }
+  if(e.target.closest('[data-fechar]') || e.target.id === 'sheet') fecharFolha();
+});
+function sair(){ S.sessao = null; S.cache = {}; lsDel('abast_sessao'); lsDel('abast_cache'); go('login'); }
+$('#sair').onclick = () => duploToque($('#sair'), sair, 'Sair?');
+const rede = () => { $('#offline').hidden = navigator.onLine; if(navigator.onLine && S.sessao) processarFila(); };
+window.addEventListener('online', rede); window.addEventListener('offline', rede);
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); instalarEvt = e; if(VIEW === 'login') render(); });
+setInterval(() => { if(S.sessao && navigator.onLine) processarFila(); }, 60000);
+
+/* Atualiza cadastros e configuração em segundo plano (sem travar a abertura) */
+async function atualizarSessao(){
+  if(!S.sessao || !navigator.onLine) return;
+  try { const d = await api('login', {pin: S.sessao.pin}); S.sessao = {...S.sessao, ...d}; salvarSessao(); topo(); } catch(e){}
+}
+
+/* ===================== Início ===================== */
+if('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+$('#offline').hidden = navigator.onLine;
+const codigo = new URLSearchParams(location.search).get('r');
+if(codigo) go('publico', codigo);
+else if(S.sessao){ go(abas()[0][0]); atualizarSessao(); processarFila(); }
+else go('login');
+</script>
+</body>
+</html>
