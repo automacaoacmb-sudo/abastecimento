@@ -2,7 +2,7 @@
  * - Tela do app: tenta a internet primeiro (pega atualizações) e cai no salvo se estiver sem sinal.
  * - Ícones e bibliotecas: usa o salvo e atualiza em segundo plano.
  * - Servidor (Google Apps Script): sempre pela internet; a fila do app cuida do envio depois. */
-const VERSAO = 'abast-1.2.0';
+const VERSAO = 'abast-1.3.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-180.png'];
 const EXTERNOS = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
