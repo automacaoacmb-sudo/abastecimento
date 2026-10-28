@@ -90,6 +90,16 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 .foto.tem{border-style:solid;border-color:var(--ok);padding:4px}
 .foto img{width:64px;height:48px;object-fit:cover;border-radius:6px}
 .foto-larga{min-height:56px;width:100%}
+.sugest{margin-top:6px;border:1.5px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden;max-height:min(380px,55vh);overflow-y:auto}
+.sugest button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 14px;border:0;border-bottom:1px solid var(--line);background:none;cursor:pointer}
+.sugest button:last-child{border-bottom:0}
+.sugest button:hover,.sugest button:focus-visible{background:var(--bg)}
+.sugest span,.escolhido span{display:flex;flex-direction:column;min-width:0}
+.sugest b.num,.escolhido b.num{font-size:17px}
+.sugest small,.escolhido small{color:var(--muted);font-size:14px;overflow-wrap:anywhere}
+.sugest em{font-style:normal;font-size:13px;color:var(--muted);white-space:nowrap}
+.sug-tit{padding:8px 14px;font:600 13px var(--f-disp);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+.escolhido{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1.5px solid var(--ok);border-radius:10px;padding:10px 12px;background:var(--surface)}
 .info-veic{display:flex;flex-wrap:wrap;gap:6px 16px;background:var(--info-bg);border-radius:8px;padding:8px 12px;font-size:15px}
 .info-veic b{font-weight:600}
 .preco{font-size:14px;color:var(--muted)}
@@ -235,7 +245,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.1.0',
+  VERSAO: '1.2.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -752,8 +762,13 @@ VIEWS['m-novo'] = {
     const c = S.sessao.cadastros, auto = S.sessao.config.aprovAuto;
     return `<h1 class="tit">Novo abastecimento</h1><p class="sub">Preencha no posto. Funciona sem internet.</p>
     <form id="fAb" novalidate>
-      <div class="campo" id="cVeic"><label class="rot" for="veic">Veículo</label>
-        <select id="veic"><option value="">Escolha pela placa</option>${c.veiculos.map(v => `<option value="${esc(v.placa)}">${esc(v.placa)} · ${esc(v.veiculo)}</option>`).join('')}<option value="OUTRO">Outro (não cadastrado)</option></select>
+      <div class="campo" id="cVeic"><label class="rot" for="veicBusca">Veículo</label>
+        <input type="hidden" id="veic">
+        <div id="buscaVeic">
+          <input type="text" id="veicBusca" placeholder="Digite placa, FT ou modelo" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-controls="sugest">
+          <div class="sugest" id="sugest" role="listbox" hidden></div>
+        </div>
+        <div class="escolhido" id="escolhido" hidden></div>
         <div class="info-veic" id="infoVeic" hidden></div>
         <div class="grid2" id="blocoOutro" hidden><input type="text" id="veicOutro" placeholder="Veículo e placa" aria-label="Veículo e placa"><select id="fazOutro" aria-label="Fazenda"><option value="">Fazenda</option>${c.fazendas.map(f => `<option>${esc(f)}</option>`).join('')}</select></div></div>
       <fieldset class="campo" id="cMed"><div class="medidor">
@@ -779,7 +794,37 @@ VIEWS['m-novo'] = {
   },
   bind(m){
     const f = $('#fAb', m), c = S.sessao.cadastros;
-    $('#veic', m).onchange = e => {
+    /* Busca do veículo: placa, número FT ou modelo, em qualquer ordem e sem acento */
+    const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+    const indice = c.veiculos.map(v => { const t = norm(`${v.placa} ${v.veiculo} ${v.fazenda}`); return {v, t, junto: t.replace(/ /g, '')}; });
+    const recentes = [...new Set((S.cache.meus || []).map(a => a.placa).filter(Boolean))].map(p => c.veiculos.find(v => v.placa === p)).filter(Boolean).slice(0, 4);
+    const busca = $('#veicBusca', m), sug = $('#sugest', m), veic = $('#veic', m);
+    const filtrar = q => { const partes = norm(q).split(' ').filter(Boolean);
+      return indice.filter(i => partes.every(p => i.t.includes(p) || i.junto.includes(p))).slice(0, 8).map(i => i.v); };
+    const linhaVeic = v => `<button type="button" role="option" data-placa="${esc(v.placa)}"><span><b class="num">${esc(v.placa)}</b><small>${esc(v.veiculo)}</small></span><em>${esc(v.fazenda || '')}</em></button>`;
+    const mostrar = () => {
+      const q = busca.value.trim();
+      let html = '';
+      if(!q){ if(recentes.length) html = `<div class="sug-tit">Usados por você</div>${recentes.map(linhaVeic).join('')}`; }
+      else { const r = filtrar(q);
+        html = r.length ? r.map(linhaVeic).join('') : `<div class="sug-tit">Nenhum veículo com "${esc(q)}"</div>`;
+        html += `<button type="button" role="option" data-placa="OUTRO"><span><b>Outro</b><small>Veículo não cadastrado</small></span></button>`; }
+      sug.innerHTML = html; sug.hidden = !html;
+    };
+    const escolher = placa => {
+      const v = c.veiculos.find(x => x.placa === placa);
+      veic.value = placa; veic.dispatchEvent(new Event('change'));
+      $('#buscaVeic', m).hidden = true; sug.hidden = true;
+      const e = $('#escolhido', m); e.hidden = false;
+      e.innerHTML = `<span>${v ? `<b class="num">${esc(v.placa)}</b><small>${esc(v.veiculo)}</small>` : '<b>Outro</b><small>Veículo não cadastrado</small>'}</span><button type="button" class="btn btn-sec btn-mini" id="trocarVeic">Trocar</button>`;
+      $('#trocarVeic', m).onclick = () => { veic.value = ''; veic.dispatchEvent(new Event('change')); e.hidden = true; $('#buscaVeic', m).hidden = false; busca.value = ''; busca.focus(); mostrar(); };
+      $('#cVeic', m).classList.remove('invalido'); $$('#cVeic .erro', m).forEach(p => p.remove());
+    };
+    busca.addEventListener('input', mostrar);
+    busca.addEventListener('focus', mostrar);
+    busca.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); const r = filtrar(busca.value); if(r.length === 1) escolher(r[0].placa); } });
+    sug.addEventListener('click', e => { const b = e.target.closest('[data-placa]'); if(b) escolher(b.dataset.placa); });
+    veic.onchange = e => {
       const v = c.veiculos.find(x => x.placa === e.target.value), info = $('#infoVeic', m);
       $('#blocoOutro', m).hidden = e.target.value !== 'OUTRO';
       info.hidden = !v;
