@@ -245,7 +245,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.3.0',
+  VERSAO: '1.4.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -785,7 +785,8 @@ VIEWS['m-novo'] = {
         <p class="ajuda">Digite o número do painel ou tire a foto. Pode fazer os dois.</p></div></fieldset>
       <div class="campo" id="cPosto"><label class="rot" for="posto">Posto</label><input type="text" id="posto" list="lPostos" placeholder="Nome do posto e cidade" autocomplete="off">
         <datalist id="lPostos">${c.postos.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
-      <div class="campo"><label class="rot" for="comb">Combustível</label><select id="comb">${c.combustiveis.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
+      <div class="campo"><label class="rot" for="comb">Combustível</label><select id="comb">${c.combustiveis.map(x => `<option>${esc(x)}</option>`).join('')}</select>
+        <p class="ajuda" id="dicaComb" hidden></p></div>
       <div class="grid2">
         <div class="campo" id="cLit"><label class="rot" for="litros">Litros</label><input type="text" id="litros" inputmode="decimal" class="num" placeholder="0,0"></div>
         <div class="campo"><label class="rot" for="valor">Valor total <em>(opcional)</em></label><input type="text" id="valor" inputmode="decimal" class="num" placeholder="R$ 0,00"></div>
@@ -834,7 +835,12 @@ VIEWS['m-novo'] = {
       const v = c.veiculos.find(x => x.placa === e.target.value), info = $('#infoVeic', m);
       $('#blocoOutro', m).hidden = e.target.value !== 'OUTRO';
       info.hidden = !v;
-      if(v) info.innerHTML = `<span>Fazenda <b>${esc(v.fazenda)}</b></span><span>Leitura por <b>${nomeMed(v.leitura)}</b></span>`;
+      if(v) info.innerHTML = `<span>Fazenda <b>${esc(v.fazenda || '—')}</b></span><span>Leitura por <b>${nomeMed(v.leitura)}</b></span>${v.combustivel ? `<span>Usa <b>${esc(v.combustivel)}</b></span>` : ''}`;
+      // Combustível predominante do cadastro já vem escolhido; o motorista pode trocar
+      const comb = $('#comb', m), dica = $('#dicaComb', m);
+      dica.hidden = true;
+      if(v && v.combustivel === 'Flex'){ comb.value = 'Gasolina'; dica.hidden = false; dica.textContent = 'Veículo flex: confira se abasteceu gasolina ou etanol.'; }
+      else if(v && c.combustiveis.includes(v.combustivel)) comb.value = v.combustivel;
       $('#rotMed', m).textContent = v ? `${nomeMed(v.leitura)} atual` : 'Km / Horímetro';
       $('#medidor', m).placeholder = v ? (v.leitura === 'Horímetro' ? 'Ex.: 1.234,5' : 'Ex.: 84.655') : 'Número do painel';
     };
