@@ -245,7 +245,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.4.0',
+  VERSAO: '1.5.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -379,6 +379,8 @@ function stAut(a){
 const chip = (t, txt) => `<span class="chip ${t}">${esc(txt)}</span>`;
 const titAbast = a => a.numero || (a.fila && !a.erro && navigator.onLine ? 'Enviando…' : 'Na fila');
 
+/** Alerta gravado pelo servidor (regras de leitura e duplicidade); sem ele, a análise feita aqui no app. */
+function textoAlerta(a){ if(a.alerta) return a.alerta; const an = analise(a); return an && an.tipo === 'alerta' ? an.tit : ''; }
 function analise(a){
   if(!a.placa) return null;
   const nm = nomeMed(a.tipoLeitura), un = unMed(a.tipoLeitura);
@@ -548,13 +550,13 @@ function abrirComprovante(a){
   });
 }
 function itemAbast(a, comAlerta){
-  const [t, s] = stAbast(a); const an = comAlerta && !a.conferencia ? analise(a) : null;
+  const [t, s] = stAbast(a); const al = comAlerta && !a.conferencia ? textoAlerta(a) : '';
   return `<button class="item" data-abast="${esc(a.numero || a.idApp)}">
     <div class="litros"><b>${fmtL(a.litros)}</b><span>LITROS</span></div>
     <div class="item-info"><div class="item-top"><span class="item-num">${esc(titAbast(a))}</span>${chip(t, s)}</div>
       <div class="item-tit">${esc(a.veiculo)}${a.placa ? ' · ' + esc(a.placa) : ''}</div>
       <div class="item-meta">Fazenda ${esc(a.fazenda || '—')} · ${esc(a.combustivel)} · ${esc(a.posto)} · ${fmtData(a.lancadoEm)}${comAlerta ? ' · ' + esc(a.motorista) : ''}</div>
-      ${an && an.tipo === 'alerta' ? `<div class="item-alerta">⚠ ${esc(an.tit)}</div>` : ''}</div></button>`;
+      ${al ? `<div class="item-alerta">⚠ ${esc(al)}</div>` : ''}</div></button>`;
 }
 
 /* ===================== Autorização: textos e telas ===================== */
@@ -1092,7 +1094,7 @@ VIEWS['c-abast'] = {
   buscar: () => apiPin('listarConferencia'),
   html(D){
     const pend = D.abastPendentes.slice().sort((a, b) => a.lancadoEm.localeCompare(b.lancadoEm)), confs = D.abastConferidos;
-    const alertas = pend.filter(a => (analise(a) || {}).tipo === 'alerta').length;
+    const alertas = pend.filter(a => textoAlerta(a)).length;
     const lst = FILTRO_C === 'pend' ? pend : confs;
     return `<div class="cab"><h1 class="tit">Conferir</h1><button class="btn btn-sec btn-mini" data-go="c-abast">Atualizar</button></div>
       <div class="resumo"><span><b>${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.litros, 0))}</b> L</span>${alertas ? chip('bad', `${alertas} fora do padrão`) : chip('ok', 'Sem alertas')}</div>
@@ -1116,6 +1118,7 @@ VIEWS['c-det'] = {
     const [t, s] = stAbast(a), an = analise(a), nm = nomeMed(a.tipoLeitura);
     return `<button class="voltar" data-go="c-abast">‹ Conferir</button>
       <div class="cab"><h1 class="tit" style="font-family:var(--f-num);font-size:26px">${esc(a.numero)}</h1>${chip(t, s)}</div>
+      ${a.alerta ? `<div class="analise alerta"><strong>⚠ Alerta para tratar</strong><span>${esc(a.alerta)}</span><span class="nums">Confira a foto, corrija o valor conferido se precisar e marque Conferido ou Divergência.</span></div>` : ''}
       ${dadosAbast(a, true)}
       ${an ? `<div class="analise ${an.tipo}"><strong>${esc(an.tit)}</strong><span>${esc(an.txt)}</span>${an.nums ? `<span class="nums">${esc(an.nums)}</span>` : ''}</div>` : ''}
       <section class="painel"><h2>Conferência</h2>
