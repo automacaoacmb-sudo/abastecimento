@@ -58,6 +58,41 @@ img{max-width:100%}
 #filaAviso{background:var(--info-bg);color:var(--info)}
 
 .app{max-width:560px;margin:0 auto;padding-block:18px calc(104px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px}
+/* Conferência no computador (tabela) */
+.app:has(.mesa){max-width:none;padding-inline:20px}
+.mesa{display:flex;gap:16px;align-items:flex-start}
+.mesa-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.mesa-barra{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.mesa-barra .filtros{margin:0}
+.mesa-barra input[type=search]{width:320px;min-height:38px;padding:0 12px;font-size:15px}
+.mesa-tab{overflow:auto;max-height:calc(100vh - 260px);border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.tab{border-collapse:collapse;width:100%;font-size:14px}
+.tab th{position:sticky;top:0;background:var(--surface);z-index:1;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.3px;color:var(--muted);padding:9px 8px;border-bottom:2px solid var(--brand);white-space:nowrap}
+.tab th.ord{cursor:pointer}.tab th.ord:hover{color:var(--ink)}
+.tab td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tab tbody tr:hover td{background:color-mix(in srgb,var(--brand) 6%,transparent)}
+.tab tr.ativa td{background:color-mix(in srgb,var(--brand) 12%,transparent)}
+.tab tr.al-bad td:first-child{box-shadow:inset 4px 0 var(--bad)}
+.tab tr.al-warn td:first-child{box-shadow:inset 4px 0 var(--warn)}
+.tab td.al{font-size:13px;min-width:170px;max-width:280px}
+.tab tr.al-bad td.al{color:var(--bad)}.tab tr.al-warn td.al{color:var(--warn)}
+.tab td.al .ok{color:var(--muted)}
+.tab .r{text-align:right;font-family:var(--f-num);white-space:nowrap}
+.tab .c{text-align:center;width:34px}
+.tab .nw{white-space:nowrap}
+.tab .num{font-family:var(--f-num)}
+.tab .dif{color:var(--bad);font-weight:700}
+.tab .sub{font-size:12px;color:var(--muted)}
+.tab .vazio{text-align:center;padding:28px;color:var(--muted)}
+.tab input.km{width:110px;min-height:34px;padding:0 8px;font-size:15px;text-align:right}
+.tab input.obs{width:220px;min-height:34px;padding:0 8px;font-size:14px}
+.tab .btn-mini{min-height:32px;padding:0 10px}
+.tab .ico{background:none;border:0;cursor:pointer;font-size:18px;padding:2px 4px;text-decoration:none}
+.tab .link,.mesa-foto .link{background:none;border:0;padding:0;color:var(--link);text-decoration:underline;cursor:pointer;font:inherit}
+.mesa-foto{flex:0 0 42%;position:sticky;top:12px;display:flex;flex-direction:column;gap:6px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:10px}
+.mesa-foto[hidden]{display:none}
+.mf-cab{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.mesa-foto iframe{width:100%;height:calc(100vh - 190px);border:0;border-radius:6px;background:#000}
 .app.publico{padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
 .tit{font:700 30px/1.05 var(--f-disp);text-transform:uppercase;letter-spacing:.01em;margin:0;text-wrap:balance}
 .sub{margin:-8px 0 0;color:var(--muted)}
@@ -245,7 +280,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.7.0',
+  VERSAO: '1.8.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -1110,10 +1145,124 @@ function blocoLeitura(L){
   return `<div class="resumo" style="margin-top:8px"><div>${txt}${ult}</div>${btn}</div>`;
 }
 
+/* ===================== Conferência no computador: tabela (tela de 1000 px ou mais) ===================== */
+const MESA = () => matchMedia('(min-width: 1000px)').matches;
+let ORD_C = {col: 'data', dir: 1}, BUSCA_C = '', BUSCA_CA = '';
+const idDrive = u => (String(u).match(/\/d\/([\w-]{20,})/) || String(u).match(/[?&]id=([\w-]{20,})/) || [])[1];
+const dataCurta = iso => { if(!iso) return '—'; const d = new Date(iso); return isNaN(d) ? fmtData(iso) : `${d.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})} ${d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}`; };
+function contasAbast(a){
+  const med = a.leituraConferida ?? a.leitura ?? a.leituraFoto, ant = a.anterior ? a.anterior.leitura : null;
+  const rod = med != null && ant != null ? med - ant : null;
+  const kml = rod != null && rod > 0 && a.litros && a.tipoLeitura !== 'Horímetro' ? rod / a.litros : null;
+  return {med, ant, rod, kml};
+}
+const ORDENS = {
+  data: a => a.lancadoEm, num: a => a.numero, mot: a => a.motorista, vei: a => a.placa || a.veiculo, faz: a => a.fazenda, litros: a => a.litros,
+  valor: a => a.valor || 0, kml: a => contasAbast(a).kml ?? -1, alerta: a => textoAlerta(a) ? 0 : 1
+};
+function ordenar(lst){
+  const f = ORDENS[ORD_C.col] || ORDENS.data;
+  return lst.slice().sort((x, y) => { const a = f(x), b = f(y); return (a > b ? 1 : a < b ? -1 : 0) * ORD_C.dir; });
+}
+function painelFoto(){
+  return `<aside class="mesa-foto" id="mesaFoto" hidden><div class="mf-cab"><b id="mfTit">Foto</b><span><a id="mfAbrir" target="_blank" rel="noopener">abrir em nova aba</a> · <button class="link" id="mfFechar">fechar ✕</button></span></div><iframe id="mfFrame" title="Foto" allow="autoplay"></iframe>
+    <p class="ajuda">Se a foto não aparecer, entre neste navegador com a conta Google que tem acesso à pasta do Drive.</p></aside>`;
+}
+function ligarPainelFoto(m){
+  const box = $('#mesaFoto', m); if(!box) return;
+  $('.mesa', m).addEventListener('click', e => {
+    const b = e.target.closest('[data-foto]'); if(!b) return;
+    const url = b.dataset.foto, id = idDrive(url);
+    $('#mfTit', box).textContent = b.dataset.tit || 'Foto'; $('#mfAbrir', box).href = url;
+    $('#mfFrame', box).src = id ? `https://drive.google.com/file/d/${id}/preview` : url;
+    box.hidden = false; m.querySelector('.mesa').classList.add('com-foto');
+    $$('tr.ativa', m).forEach(t => t.classList.remove('ativa')); const tr = b.closest('tr'); if(tr) tr.classList.add('ativa');
+  });
+  $('#mfFechar', box).onclick = () => { box.hidden = true; $('#mfFrame', box).src = 'about:blank'; m.querySelector('.mesa').classList.remove('com-foto'); };
+}
+function filtrarLinhas(m, sel, txt){
+  const nb = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  const q = nb(txt).trim();
+  $$(sel, m).forEach(tr => tr.hidden = !!q && !nb(tr.dataset.busca).includes(q));
+}
+const fotoBtns = a => [a.fotoPainel && `<button class="ico" data-foto="${esc(a.fotoPainel)}" data-tit="${esc(a.numero)} · painel" title="Foto do painel">📷</button>`,
+  a.fotoCupom && `<button class="ico" data-foto="${esc(a.fotoCupom)}" data-tit="${esc(a.numero)} · cupom" title="Foto do cupom">🧾</button>`].filter(Boolean).join('') || '—';
+
+function tabelaAbast(D, lst, pendente){
+  const th = (col, txt, cls = '') => `<th class="${cls}${col ? ' ord' : ''}" ${col ? `data-ord="${col}"` : ''}>${txt}${col && ORD_C.col === col ? (ORD_C.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`;
+  const linhas = ordenar(lst).map(a => {
+    const {med, ant, rod, kml} = contasAbast(a), al = pendente ? textoAlerta(a) : '', un = unMed(a.tipoLeitura);
+    const difFoto = a.leitura != null && a.leituraFoto != null && Math.abs(a.leitura - a.leituraFoto) > Math.max(2, a.leitura * .002);
+    const busca = [a.numero, a.placa, a.veiculo, a.motorista, a.fazenda, a.combustivel].join(' ');
+    return `<tr data-n="${esc(a.numero)}" data-busca="${esc(busca)}" class="${al ? (a.falta ? 'al-warn' : 'al-bad') : ''}">
+      ${pendente ? `<td class="c">${al ? '' : `<input type="checkbox" class="sel" aria-label="Selecionar ${esc(a.numero)}">`}</td>` : ''}
+      <td><button class="link num" data-go="c-det" data-p="${esc(a.numero)}">${esc(a.numero)}</button></td>
+      <td class="nw">${dataCurta(a.lancadoEm)}</td><td>${esc(a.motorista)}</td>
+      <td><b>${esc(a.placa || '—')}</b><div class="sub">${esc(a.veiculo)}</div></td><td>${esc(a.fazenda || '—')}</td><td>${esc(a.combustivel)}</td>
+      <td class="r">${fmtL(a.litros)}</td><td class="r nw">${fmtR(a.valor)}</td>
+      <td class="r">${ant != null ? fmtN(ant) : '—'}</td><td class="r${difFoto ? ' dif' : ''}">${a.leitura != null ? fmtN(a.leitura) : '—'}</td>
+      <td class="r${difFoto ? ' dif' : ''}" title="${esc(a.confiancaFoto)}">${a.leituraFoto != null ? fmtN(a.leituraFoto) : a.fotoPainel ? '<span class="sub">não lida</span>' : '—'}</td>
+      <td class="r${rod != null && rod <= 0 ? ' dif' : ''}">${rod != null ? fmtN(rod) + ' ' + un : '—'}</td><td class="r">${kml != null ? fmtL(kml) : '—'}</td>
+      <td class="al">${al ? esc(al) : pendente ? '<span class="ok">ok</span>' : esc(`${a.conferencia} · ${a.conferidoPor}${a.obsConferencia ? ' · ' + a.obsConferencia : ''}`)}</td>
+      <td class="nw">${fotoBtns(a)}</td>
+      ${pendente ? `<td>${a.placa ? `<input type="text" class="num km" inputmode="decimal" value="${med != null ? fmtN(med) : ''}" placeholder="ver foto" aria-label="${esc(nomeMed(a.tipoLeitura))} conferido">` : '—'}</td>
+      <td class="nw"><button class="btn btn-pri btn-mini" data-c="ok" title="Conferido (Enter)">✓</button> <button class="btn btn-perigo btn-mini" data-c="div" title="Divergência">⚠</button></td>`
+      : `<td class="r">${a.leituraConferida != null ? fmtN(a.leituraConferida) : '—'}</td>`}</tr>`;
+  }).join('');
+  return `<div class="mesa-tab"><table class="tab">
+    <thead><tr>${pendente ? '<th class="c"><input type="checkbox" id="selTodos" aria-label="Selecionar todos sem alerta"></th>' : ''}${th('num', 'Nº')}${th('data', 'Data')}${th('mot', 'Motorista')}${th('vei', 'Placa / veículo')}${th('faz', 'Fazenda')}${th('', 'Comb.')}${th('litros', 'Litros', 'r')}${th('valor', 'Valor', 'r')}${th('', 'Km anterior', 'r')}${th('', 'Km digitado', 'r')}${th('', 'Km da foto', 'r')}${th('', 'Rodado', 'r')}${th('kml', 'Km/L', 'r')}${th('alerta', pendente ? 'Alerta' : 'Conferência')}${th('', 'Fotos')}${pendente ? th('', 'Km conferido') + th('', '') : th('', 'Km conferido', 'r')}</tr></thead>
+    <tbody>${linhas || `<tr><td colspan="19" class="vazio">${pendente ? 'Tudo conferido por aqui.' : 'Nada aqui.'}</td></tr>`}</tbody></table></div>`;
+}
+
+function ligarTabelaAbast(m, D){
+  ligarPainelFoto(m);
+  const busca = $('#buscaC', m);
+  if(busca){ busca.oninput = () => { BUSCA_C = busca.value; filtrarLinhas(m, 'tbody tr[data-n]', BUSCA_C); }; filtrarLinhas(m, 'tbody tr[data-n]', BUSCA_C); }
+  $$('th[data-ord]', m).forEach(th => th.onclick = () => { const c = th.dataset.ord; ORD_C = {col: c, dir: ORD_C.col === c ? -ORD_C.dir : 1}; render(); });
+  const contar = () => { const n = $$('.sel:checked', m).length, b = $('#loteOk', m); if(b){ b.hidden = !n; b.textContent = `✓ Conferir ${n} selecionado(s)`; } };
+  const todos = $('#selTodos', m);
+  if(todos) todos.onchange = () => { $$('tr:not([hidden]) .sel', m).forEach(c => c.checked = todos.checked); contar(); };
+  const M = $('.mesa', m);
+  M.addEventListener('change', e => { if(e.target.classList.contains('sel')) contar(); });
+  const proxima = tr => { let t = tr.nextElementSibling; while(t && t.hidden) t = t.nextElementSibling; return t; };
+  const conferir = async (tr, status, obs = '') => {
+    const a = D.abastPendentes.find(x => x.numero === tr.dataset.n); if(!a) return false;
+    const km = $('.km', tr);
+    const rec = await apiPin('conferirAbastecimento', {numero: a.numero, status, leitura: km ? km.value : '', obs});
+    rec.anterior = a.anterior;
+    D.abastPendentes = D.abastPendentes.filter(x => x.numero !== a.numero); D.abastConferidos = [rec].concat(D.abastConferidos.filter(x => x.numero !== a.numero));
+    S.cache.conf = D; salvarCache();
+    const prox = proxima(tr); tr.remove();
+    const c = $('#contaC', m); if(c) c.textContent = D.abastPendentes.length;
+    return prox;
+  };
+  const agir = (tr, status, btn) => {
+    let obs = '';
+    if(status === 'div'){ obs = prompt(`Divergência em ${tr.dataset.n}: descreva o que está errado.`, ''); if(obs === null) return; obs = obs.trim(); }
+    ocupado(btn, '…', async () => {
+      try { const prox = await conferir(tr, status, obs); toast(`${tr.dataset.n} ${status === 'ok' ? 'conferido' : 'marcado com divergência'}.`);
+        const k = prox && $('.km', prox); if(k){ k.focus(); k.select(); } }
+      catch(er){ toast(er.message, 'bad'); }
+    });
+  };
+  M.addEventListener('click', e => { const b = e.target.closest('[data-c]'); if(b) agir(b.closest('tr'), b.dataset.c, b); });
+  M.addEventListener('keydown', e => {
+    if(e.key !== 'Enter' || !e.target.classList.contains('km')) return;
+    e.preventDefault(); const tr = e.target.closest('tr'); agir(tr, 'ok', $('[data-c="ok"]', tr));
+  });
+  const lote = $('#loteOk', m);
+  if(lote) lote.onclick = () => ocupado(lote, 'Conferindo…', async () => {
+    const trs = $$('.sel:checked', m).map(c => c.closest('tr')); let n = 0;
+    for(const tr of trs){ try { await conferir(tr, 'ok'); n++; } catch(er){ toast(`${tr.dataset.n}: ${er.message}`, 'bad'); break; } }
+    toast(`${n} lançamento(s) conferido(s).`); contar();
+  });
+}
+
 VIEWS['c-abast'] = {
   chave: 'conf',
   buscar: () => apiPin('listarConferencia'),
   html(D){
+    if(MESA()) return this.htmlMesa(D);
     const pend = D.abastPendentes.slice().sort((a, b) => a.lancadoEm.localeCompare(b.lancadoEm)), confs = D.abastConferidos;
     const alertas = pend.filter(a => textoAlerta(a)).length;
     const lst = FILTRO_C === 'pend' ? pend : confs;
@@ -1123,7 +1272,21 @@ VIEWS['c-abast'] = {
       <div class="filtros" id="filC">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidos (últimos)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_C === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
       <div class="lista">${lst.length ? lst.map(a => itemAbast(a, true)).join('') : '<div class="vazio">Tudo conferido por aqui.</div>'}</div>`;
   },
+  htmlMesa(D){
+    const pend = D.abastPendentes, confs = D.abastConferidos, alertas = pend.filter(a => textoAlerta(a)).length;
+    return `<div class="mesa"><div class="mesa-main">
+      <div class="cab"><h1 class="tit">Conferir abastecimentos</h1><button class="btn btn-sec btn-mini" data-go="c-abast">Atualizar</button></div>
+      <div class="resumo"><span><b id="contaC">${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.litros, 0))}</b> L</span>${alertas ? chip('bad', `${alertas} com alerta`) : chip('ok', 'Sem alertas')}</div>
+      ${blocoLeitura(D.leitura)}
+      <div class="mesa-barra"><div class="filtros" id="filC">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidos (últimos)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_C === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
+        <input type="search" id="buscaC" placeholder="Filtrar por placa, motorista, fazenda…" value="${esc(BUSCA_C)}">
+        <button class="btn btn-pri btn-mini" id="loteOk" hidden></button>
+        <span class="sub">Enter no Km conferido = ✓ e vai para a próxima linha</span></div>
+      ${tabelaAbast(D, FILTRO_C === 'pend' ? pend : confs, FILTRO_C === 'pend')}
+      </div>${painelFoto()}</div>`;
+  },
   bind(m, D){
+    if(MESA()) ligarTabelaAbast(m, D);
     const bl = $('#lerFotos', m);
     if(bl) bl.onclick = () => ocupado(bl, 'Pedindo…', async () => {
       try {
@@ -1133,6 +1296,7 @@ VIEWS['c-abast'] = {
       } catch(e){ toast(e.message || 'Sem conexão: tente de novo quando tiver sinal.', 'erro'); }
     });
     $('#filC', m).onclick = e => { const b = e.target.closest('button'); if(b){ FILTRO_C = b.dataset.f; render(); } };
+    if(MESA()) return;
     m.querySelectorAll('[data-abast]').forEach(b => b.onclick = () => go('c-det', b.dataset.abast));
   }
 };
@@ -1177,6 +1341,28 @@ VIEWS['c-aut'] = {
   buscar: () => apiPin('listarConferencia'),
   html(D){
     const pend = D.retiradasPendentes, confs = D.retiradasConferidas, lst = FILTRO_CA === 'pend' ? pend : confs;
+    if(MESA()){
+      const p = FILTRO_CA === 'pend';
+      const linhas = lst.slice().sort((x, y) => String(x.retirada.em).localeCompare(String(y.retirada.em))).map(a => {
+        const r = a.retirada, passou = r.litros > a.limite;
+        return `<tr data-n="${esc(a.numero)}" data-busca="${esc([a.numero, a.terceiro, a.placa, a.fazenda, a.posto].join(' '))}" class="${passou ? 'al-bad' : ''}">
+          <td class="num">${esc(a.numero)}</td><td class="nw">${dataCurta(r.em)}</td><td>${esc(a.terceiro)}<div class="sub">assinou: ${esc(r.nome || '—')}</div></td>
+          <td><b>${esc(a.placa || '—')}</b></td><td>${a.tipo === 'galoes' ? `Galões (${fmtN(a.galoes)})` : 'Tanque'}</td><td>${esc(a.fazenda || '—')}</td>
+          <td>${esc(a.combustivel)}</td><td>${esc(a.posto || '—')}</td><td class="r">${fmtL(a.limite)}</td><td class="r${passou ? ' dif' : ''}">${fmtL(r.litros)}</td>
+          <td class="r">${r.km != null ? fmtN(r.km) : '—'}</td>
+          <td class="nw">${a.assinatura ? `<button class="ico" data-foto="${esc(a.assinatura)}" data-tit="${esc(a.numero)} · assinatura" title="Assinatura">✍️</button>` : ''}${a.pdf ? ` <a class="ico" href="${esc(a.pdf)}" target="_blank" rel="noopener" title="PDF">📄</a>` : ''}</td>
+          ${p ? `<td><input type="text" class="obs" placeholder="Observação (opcional)" value="${esc(a.obsConferencia || '')}"></td><td><button class="btn btn-pri btn-mini" data-ca title="Marcar como conferida (Enter)">✓</button></td>`
+            : `<td colspan="2">${esc(`${a.conferencia} · ${a.conferidoPor}${a.obsConferencia ? ' · ' + a.obsConferencia : ''}`)}</td>`}</tr>`;
+      }).join('');
+      return `<div class="mesa"><div class="mesa-main">
+        <div class="cab"><h1 class="tit">Retiradas de terceiros</h1><button class="btn btn-sec btn-mini" data-go="c-aut">Atualizar</button></div>
+        <div class="resumo"><span><b id="contaCA">${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.retirada.litros, 0))}</b> L</span></div>
+        <div class="mesa-barra"><div class="filtros" id="filCA">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidas (últimas)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_CA === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
+          <input type="search" id="buscaCA" placeholder="Filtrar por terceiro, placa, fazenda…" value="${esc(BUSCA_CA)}"></div>
+        <div class="mesa-tab"><table class="tab"><thead><tr><th>Nº</th><th>Retirada</th><th>Terceiro</th><th>Placa</th><th>Tipo</th><th>Fazenda</th><th>Comb.</th><th>Posto</th><th class="r">Limite (L)</th><th class="r">Retirado (L)</th><th class="r">Km</th><th>Arquivos</th><th>${p ? 'Observação' : 'Conferência'}</th><th></th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="14" class="vazio">Nada aqui.</td></tr>'}</tbody></table></div>
+        </div>${painelFoto()}</div>`;
+    }
     return `<div class="cab"><h1 class="tit">Retiradas de terceiros</h1><button class="btn btn-sec btn-mini" data-go="c-aut">Atualizar</button></div>
       <div class="resumo"><span><b>${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.retirada.litros, 0))}</b> L</span></div>
       <div class="filtros" id="filCA">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidas (últimas)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_CA === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
@@ -1184,6 +1370,24 @@ VIEWS['c-aut'] = {
   },
   bind(m, D){
     $('#filCA', m).onclick = e => { const b = e.target.closest('button'); if(b){ FILTRO_CA = b.dataset.f; render(); } };
+    if(MESA()){
+      ligarPainelFoto(m);
+      const M = $('.mesa', m), busca = $('#buscaCA', m);
+      busca.oninput = () => { BUSCA_CA = busca.value; filtrarLinhas(m, 'tbody tr[data-n]', BUSCA_CA); }; filtrarLinhas(m, 'tbody tr[data-n]', BUSCA_CA);
+      const conferir = (tr, btn) => ocupado(btn, '…', async () => {
+        try {
+          const rec = await apiPin('conferirAutorizacao', {numero: tr.dataset.n, obs: $('.obs', tr).value.trim()});
+          D.retiradasPendentes = D.retiradasPendentes.filter(x => x.numero !== tr.dataset.n); D.retiradasConferidas = [rec].concat(D.retiradasConferidas.filter(x => x.numero !== tr.dataset.n));
+          S.cache.conf = D; salvarCache();
+          let prox = tr.nextElementSibling; while(prox && prox.hidden) prox = prox.nextElementSibling;
+          tr.remove(); $('#contaCA', m).textContent = D.retiradasPendentes.length; toast(`${rec.numero || tr.dataset.n} conferida.`);
+          const o = prox && $('.obs', prox); if(o) o.focus();
+        } catch(er){ toast(er.message, 'bad'); }
+      });
+      M.addEventListener('click', e => { const b = e.target.closest('[data-ca]'); if(b) conferir(b.closest('tr'), b); });
+      M.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target.classList.contains('obs')){ e.preventDefault(); const tr = e.target.closest('tr'); conferir(tr, $('[data-ca]', tr)); } });
+      return;
+    }
     m.querySelectorAll('[data-aut]').forEach(b => b.onclick = () => {
       const a = D.retiradasPendentes.concat(D.retiradasConferidas).find(x => x.numero === b.dataset.aut); if(!a) return;
       abrirFolha(`${ticketHTML(a)}<section class="painel"><h2>Conferência</h2>
@@ -1207,6 +1411,8 @@ document.addEventListener('click', e => {
   const g = e.target.closest('[data-go]'); if(g){ go(g.dataset.go, g.dataset.p || null); return; }
   if(e.target.closest('[data-fechar]') || e.target.id === 'sheet') fecharFolha();
 });
+// Trocou entre celular e computador (janela estreita/larga): redesenha a conferência no formato certo
+matchMedia('(min-width: 1000px)').addEventListener('change', () => { if(VIEW === 'c-abast' || VIEW === 'c-aut') render(); });
 function sair(){ S.sessao = null; S.cache = {}; lsDel('abast_sessao'); lsDel('abast_cache'); go('login'); }
 $('#sair').onclick = () => duploToque($('#sair'), sair, 'Sair?');
 const rede = () => { $('#offline').hidden = navigator.onLine; if(navigator.onLine && S.sessao) processarFila(); };
