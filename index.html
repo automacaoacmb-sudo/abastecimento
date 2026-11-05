@@ -245,7 +245,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.6.0',
+  VERSAO: '1.7.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -1095,6 +1095,21 @@ VIEWS.publico = {
   }
 };
 
+/* Leitura das fotos do painel pelo robô: automática às 20h (e 8h30 na segunda e no dia 1) ou quando pedida aqui. */
+const fmtQuando = iso => { if(!iso) return ''; const d = new Date(iso), hoje = new Date();
+  const h = d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+  return d.toDateString() === hoje.toDateString() ? `hoje às ${h}` : `${d.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})} às ${h}`; };
+function blocoLeitura(L){
+  if(!L) return '';
+  let txt, btn = '';
+  if(L.lendo) txt = '📷 <b>Lendo as fotos agora…</b> Toque em Atualizar daqui a pouco.';
+  else if(L.pedido) txt = `📷 Leitura pedida por ${esc(L.pedido.por)} ${fmtQuando(L.pedido.em)}. O robô começa em até 3 minutos.`;
+  else if(L.fotosEsperando){ txt = `📷 <b>${L.fotosEsperando}</b> foto(s) do painel esperando leitura. Leitura automática às 20h.`; btn = '<button class="btn btn-pri btn-mini" id="lerFotos">Ler fotos agora</button>'; }
+  else txt = '📷 Todas as fotos do painel já foram lidas.';
+  const ult = L.fim ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Última leitura ${fmtQuando(L.fim)}${L.erro ? ` · <span style="color:var(--bad)">falhou: ${esc(L.erro)}</span>` : ''}</div>` : '';
+  return `<div class="resumo" style="margin-top:8px"><div>${txt}${ult}</div>${btn}</div>`;
+}
+
 VIEWS['c-abast'] = {
   chave: 'conf',
   buscar: () => apiPin('listarConferencia'),
@@ -1104,10 +1119,19 @@ VIEWS['c-abast'] = {
     const lst = FILTRO_C === 'pend' ? pend : confs;
     return `<div class="cab"><h1 class="tit">Conferir</h1><button class="btn btn-sec btn-mini" data-go="c-abast">Atualizar</button></div>
       <div class="resumo"><span><b>${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.litros, 0))}</b> L</span>${alertas ? chip('bad', `${alertas} fora do padrão`) : chip('ok', 'Sem alertas')}</div>
+      ${blocoLeitura(D.leitura)}
       <div class="filtros" id="filC">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidos (últimos)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_C === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
       <div class="lista">${lst.length ? lst.map(a => itemAbast(a, true)).join('') : '<div class="vazio">Tudo conferido por aqui.</div>'}</div>`;
   },
-  bind(m){
+  bind(m, D){
+    const bl = $('#lerFotos', m);
+    if(bl) bl.onclick = () => ocupado(bl, 'Pedindo…', async () => {
+      try {
+        const s = await apiPin('pedirLeitura');
+        if(D){ D.leitura = s; S.cache.conf = D; salvarCache(); }
+        toast(s.aviso || 'Pedido enviado. O robô começa em até 3 minutos.'); render();
+      } catch(e){ toast(e.message || 'Sem conexão: tente de novo quando tiver sinal.', 'erro'); }
+    });
     $('#filC', m).onclick = e => { const b = e.target.closest('button'); if(b){ FILTRO_C = b.dataset.f; render(); } };
     m.querySelectorAll('[data-abast]').forEach(b => b.onclick = () => go('c-det', b.dataset.abast));
   }
