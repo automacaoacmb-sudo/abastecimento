@@ -280,7 +280,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.8.0',
+  VERSAO: '1.9.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -609,9 +609,9 @@ function ticketHTML(a, assinaturaLocal){
     <dl class="t-dados">
       <div class="w"><dt>Autorizado a retirar</dt><dd>${esc(a.terceiro)}</dd></div>
       <div><dt>CPF</dt><dd class="n">${esc(a.cpf)}</dd></div>
-      <div><dt>Placa</dt><dd class="n">${esc(a.placa)}</dd></div>
-      <div><dt>Retirada</dt><dd>${a.tipo === 'galoes' ? `${a.galoes} galões` : 'No tanque do veículo'}</dd></div>
       <div><dt>${a.tipo === 'galoes' ? 'Fazenda destino' : 'Fazenda'}</dt><dd>${esc(a.fazenda)}</dd></div>
+      ${a.tipo === 'galoes' ? `<div><dt>N° SC</dt><dd class="n">${esc(a.sc || '—')}</dd></div><div><dt>Retirada</dt><dd>GALÃO</dd></div>`
+        : `<div><dt>Placa</dt><dd class="n">${esc(a.placa)}</dd></div><div><dt>Retirada</dt><dd>No tanque do veículo</dd></div>`}
       <div class="w"><dt>Posto</dt><dd>${esc(a.posto)}</dd></div>
       <div><dt>Combustível</dt><dd>${esc(a.combustivel)}</dd></div>
       <div><dt>Limite</dt><dd class="n">${fmtN(a.limite)} L</dd></div>
@@ -635,7 +635,7 @@ function desenharQRs(root){
   });
 }
 function textoAut(a){
-  return `*Requisição de abastecimento ${a.numero}*\n${a.empresa}\n\nAutorizado: ${a.terceiro}\nCPF: ${a.cpf}\nPlaca: ${a.placa}\nRetirada: ${a.tipo === 'galoes' ? `${a.galoes} galões para a Fazenda ${a.fazenda}` : `no tanque do veículo (Fazenda ${a.fazenda})`}\nPosto: ${a.posto}\nCombustível: ${a.combustivel}, até ${fmtN(a.limite)} L\nVálida até: ${fmtData(a.validaAte)}\nMotivo: ${a.justificativa}\n\nNo posto, abra o link, informe os litros e assine para confirmar a retirada:\n${linkReq(a)}`;
+  return `*Requisição de abastecimento ${a.numero}*\n${a.empresa}\n\nAutorizado: ${a.terceiro}\nCPF: ${a.cpf}\n${a.tipo === 'galoes' ? `Retirada: GALÃO para a Fazenda ${a.fazenda}${a.sc ? `\nN° SC: ${a.sc}` : ''}` : `Placa: ${a.placa}\nRetirada: no tanque do veículo (Fazenda ${a.fazenda})`}\nPosto: ${a.posto}\nCombustível: ${a.combustivel}, até ${fmtN(a.limite)} L\nVálida até: ${fmtData(a.validaAte)}\nMotivo: ${a.justificativa}\n\nNo posto, abra o link, informe os litros e assine para confirmar a retirada:\n${linkReq(a)}`;
 }
 function itemAut(a){
   const [t, s] = stAut(a);
@@ -643,7 +643,7 @@ function itemAut(a){
     <div class="litros"><b>${a.retirada ? fmtL(a.retirada.litros) : fmtN(a.limite)}</b><span>${a.retirada ? 'RETIRADO' : 'LIMITE L'}</span></div>
     <div class="item-info"><div class="item-top"><span class="item-num">${esc(a.numero)}</span>${chip(t, s)}</div>
       <div class="item-tit">${esc(a.terceiro)}</div>
-      <div class="item-meta">Placa ${esc(a.placa)} · ${a.tipo === 'galoes' ? `${a.galoes} galões · ` : ''}${esc(a.posto)} · até ${fmtData(a.validaAte)}</div>
+      <div class="item-meta">${a.tipo === 'galoes' ? `Galão · ${esc(a.fazenda)}${a.sc ? ' · SC ' + esc(a.sc) : ''}` : `Placa ${esc(a.placa)}`} · ${esc(a.posto)} · até ${fmtData(a.validaAte)}</div>
       ${a.conferencia ? `<div class="item-meta">Conferida por ${esc(a.conferidoPor)}</div>` : ''}</div></button>`;
 }
 
@@ -662,8 +662,9 @@ function docAbast(a){
 function docAut(a, assinatura){
   const [t, s] = stAut(a);
   return { kicker: 'Requisição de abastecimento · terceiro', numero: a.numero, status: [s, t], qr: linkReq(a), campos: [
-    ['Autorizado a retirar', a.terceiro], ['CPF', a.cpf, 1, 1], ['Placa', a.placa, 1, 1],
-    ['Retirada', a.tipo === 'galoes' ? `${a.galoes} galões` : 'No tanque do veículo', 1], [a.tipo === 'galoes' ? 'Fazenda destino' : 'Fazenda', a.fazenda, 1],
+    ['Autorizado a retirar', a.terceiro], ['CPF', a.cpf, 1, 1],
+    ...(a.tipo === 'galoes' ? [['Fazenda destino', a.fazenda, 1], ['N° SC', a.sc || '—', 1, 1], ['Retirada', 'GALÃO', 1]]
+      : [['Placa', a.placa, 1, 1], ['Retirada', 'No tanque do veículo', 1], ['Fazenda', a.fazenda, 1]]),
     ['Posto', a.posto], ['Combustível', a.combustivel, 1], ['Limite', fmtN(a.limite) + ' L', 1, 1],
     ['Válida até', fmtData(a.validaAte), 1, 1], ['Emitida em', fmtData(a.emitidaEm), 1, 1],
     ['Emitida por', `${a.emitidaPor} · ${a.empresa}`], ['Justificativa', a.justificativa]
@@ -980,23 +981,21 @@ VIEWS['r-novo'] = {
     const c = S.sessao.cadastros;
     return `<h1 class="tit">Autorizar terceiro</h1><p class="sub">Gera a requisição para enviar ao terceiro. Ele assina no posto ao retirar. Precisa de internet.</p>
     <form id="fAt" novalidate>
+      <div class="campo"><span class="rot">Tipo de retirada</span>
+        <div class="seg" id="segTipo"><button type="button" data-v="veiculo" class="on">No tanque do veículo</button><button type="button" data-v="galoes">Galão p/ fazenda</button></div></div>
       <div class="campo" id="cNome"><label class="rot" for="tNome">Nome de quem vai retirar</label><input type="text" id="tNome" autocomplete="off" placeholder="Nome completo"></div>
       <div class="grid2">
         <div class="campo" id="cCpf"><label class="rot" for="tCpf">CPF</label><input type="text" id="tCpf" inputmode="numeric" class="num" placeholder="000.000.000-00" maxlength="14"></div>
         <div class="campo" id="cPlaca"><label class="rot" for="tPlaca">Placa</label><input type="text" id="tPlaca" class="num" placeholder="ABC1D23" maxlength="8" style="text-transform:uppercase"></div>
-      </div>
-      <div class="campo"><span class="rot">Tipo de retirada</span>
-        <div class="seg" id="segTipo"><button type="button" data-v="veiculo" class="on">No tanque do veículo</button><button type="button" data-v="galoes">Galões p/ fazenda</button></div></div>
-      <div class="grid2">
-        <div class="campo" id="cGal" hidden><label class="rot" for="tGal">Nº de galões</label><input type="text" id="tGal" inputmode="numeric" class="num" placeholder="Ex.: 4"></div>
         <div class="campo" id="cTFaz"><label class="rot" for="tFaz" id="rotFaz">Fazenda (custo)</label><select id="tFaz"><option value="">Escolha</option>${c.fazendas.map(f => `<option>${esc(f)}</option>`).join('')}</select></div>
+      </div>
+      <div class="grid2">
+        <div class="campo" id="cSc" hidden><label class="rot" for="tSc">N° SC</label><input type="text" id="tSc" autocomplete="off" class="num" placeholder="Ex.: 4521"></div>
+        <div class="campo" id="cLim"><label class="rot" for="tLim">Qtde (litros)</label><input type="text" id="tLim" inputmode="decimal" class="num" placeholder="Ex.: 150"></div>
       </div>
       <div class="campo" id="cTPosto"><label class="rot" for="tPosto">Posto</label><input type="text" id="tPosto" list="lPostos2" autocomplete="off" placeholder="Nome do posto e cidade">
         <datalist id="lPostos2">${c.postos.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
-      <div class="grid2">
-        <div class="campo"><label class="rot" for="tComb">Combustível</label><select id="tComb">${c.combustiveis.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
-        <div class="campo" id="cLim"><label class="rot" for="tLim">Limite (litros)</label><input type="text" id="tLim" inputmode="decimal" class="num" placeholder="Ex.: 150"></div>
-      </div>
+      <div class="campo"><label class="rot" for="tComb">Combustível</label><select id="tComb">${c.combustiveis.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
       <div class="campo" id="cVal"><label class="rot" for="tVal">Válida até</label><input type="date" id="tVal" value="${hojeISO()}" min="${hojeISO()}"></div>
       <div class="campo" id="cJust"><label class="rot" for="tJust">Justificativa</label><textarea id="tJust" placeholder="Por que esta pessoa vai abastecer por conta da empresa? Ex.: frete de calcário para a Fazenda Chapecó"></textarea></div>
       <button class="btn btn-pri btn-bloco" type="submit" id="btEmitir">${ICON.assin} Emitir requisição</button>
@@ -1004,7 +1003,17 @@ VIEWS['r-novo'] = {
   },
   bind(m){
     const f = $('#fAt', m); let tipo = 'veiculo';
-    seg($('#segTipo', m), v => { tipo = v; $('#cGal', m).hidden = v !== 'galoes'; $('#rotFaz', m).textContent = v === 'galoes' ? 'Fazenda destino' : 'Fazenda (custo)'; });
+    // Galão: sem placa; CPF + fazenda lado a lado; N° SC; combustível já em Gasolina (pode trocar)
+    const ajustarTipo = () => {
+      const g = tipo === 'galoes', grid = $('#cCpf', m).parentElement;
+      $('#cPlaca', m).hidden = g; $('#cSc', m).hidden = !g;
+      if(g) grid.appendChild($('#cTFaz', m)); else grid.after($('#cTFaz', m));
+      $('#rotFaz', m).textContent = g ? 'Fazenda destino' : 'Fazenda (custo)';
+      $('#cLim', m).parentElement.classList.toggle('grid2', g);
+    };
+    ajustarTipo();
+    seg($('#segTipo', m), v => { tipo = v; ajustarTipo();
+      if(v === 'galoes' && [...$('#tComb', m).options].some(o => o.value === 'Gasolina')) $('#tComb', m).value = 'Gasolina'; });
     $('#tCpf', m).oninput = e => { const d = e.target.value.replace(/\D/g, '').slice(0, 11);
       e.target.value = d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'); };
     $('#tPlaca', m).oninput = e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); };
@@ -1013,17 +1022,16 @@ VIEWS['r-novo'] = {
       const v = id => $(id, m).value.trim();
       if(v('#tNome').length < 3) err('#cNome', 'Informe o nome completo.');
       if(v('#tCpf').replace(/\D/g, '').length !== 11) err('#cCpf', 'CPF com 11 números.');
-      if(v('#tPlaca').length < 7) err('#cPlaca', 'Placa com 7 caracteres.');
+      if(tipo !== 'galoes' && v('#tPlaca').length < 7) err('#cPlaca', 'Placa com 7 caracteres.');
       if(!v('#tPosto')) err('#cTPosto', 'Informe o posto.');
-      if(tipo === 'galoes' && !(parseInt(v('#tGal'), 10) > 0)) err('#cGal', 'Quantos galões?');
       if(!v('#tFaz')) err('#cTFaz', 'Escolha a fazenda.');
-      if(!(num(v('#tLim')) > 0)) err('#cLim', 'Informe o limite em litros.');
+      if(!(num(v('#tLim')) > 0)) err('#cLim', 'Informe a quantidade em litros.');
       if(!v('#tVal') || v('#tVal') < hojeISO()) err('#cVal', 'A validade não pode ser no passado.');
       if(v('#tJust').length < 10) err('#cJust', 'Explique o motivo (mínimo 10 letras).');
       if(!ok){ rolarErro(m); return; }
       await ocupado($('#btEmitir', m), 'Emitindo…', async () => {
         try {
-          const a = await apiPin('emitirAutorizacao', {dados: {nome: v('#tNome'), cpf: v('#tCpf'), placa: v('#tPlaca'), tipo, galoes: v('#tGal'), fazenda: v('#tFaz'),
+          const a = await apiPin('emitirAutorizacao', {dados: {nome: v('#tNome'), cpf: v('#tCpf'), placa: tipo === 'galoes' ? '' : v('#tPlaca'), tipo, sc: tipo === 'galoes' ? v('#tSc') : '', fazenda: v('#tFaz'),
             posto: v('#tPosto'), combustivel: v('#tComb'), limite: v('#tLim'), validade: v('#tVal'), justificativa: v('#tJust')}});
           S.cache.auts = [a].concat(S.cache.auts || []); salvarCache();
           toast(`${a.numero} emitida. Envie para ${a.terceiro.split(' ')[0]}.`); go('req', a.numero);
@@ -1094,7 +1102,7 @@ VIEWS.publico = {
       <form id="fRet" novalidate>
         <div class="grid2">
           <div class="campo" id="cRL"><label class="rot" for="rLit">Litros retirados</label><input type="text" id="rLit" inputmode="decimal" class="num" placeholder="Até ${fmtN(a.limite)}"></div>
-          <div class="campo"><label class="rot" for="rKm">Km do veículo <em>(opcional)</em></label><input type="text" id="rKm" inputmode="numeric" class="num" placeholder="Ex.: 231.870"></div>
+          <div class="campo"${a.tipo === 'galoes' ? ' hidden' : ''}><label class="rot" for="rKm">Km do veículo <em>(opcional)</em></label><input type="text" id="rKm" inputmode="numeric" class="num" placeholder="Ex.: 231.870"></div>
         </div>
         <div class="campo" id="cRN"><label class="rot" for="rNome">Seu nome</label><input type="text" id="rNome" value="${esc(a.terceiro)}"></div>
         <div class="campo" id="cAss"><span class="rot">Assinatura</span>
@@ -1345,9 +1353,9 @@ VIEWS['c-aut'] = {
       const p = FILTRO_CA === 'pend';
       const linhas = lst.slice().sort((x, y) => String(x.retirada.em).localeCompare(String(y.retirada.em))).map(a => {
         const r = a.retirada, passou = r.litros > a.limite;
-        return `<tr data-n="${esc(a.numero)}" data-busca="${esc([a.numero, a.terceiro, a.placa, a.fazenda, a.posto].join(' '))}" class="${passou ? 'al-bad' : ''}">
+        return `<tr data-n="${esc(a.numero)}" data-busca="${esc([a.numero, a.terceiro, a.placa, a.fazenda, a.posto, a.sc].join(' '))}" class="${passou ? 'al-bad' : ''}">
           <td class="num">${esc(a.numero)}</td><td class="nw">${dataCurta(r.em)}</td><td>${esc(a.terceiro)}<div class="sub">assinou: ${esc(r.nome || '—')}</div></td>
-          <td><b>${esc(a.placa || '—')}</b></td><td>${a.tipo === 'galoes' ? `Galões (${fmtN(a.galoes)})` : 'Tanque'}</td><td>${esc(a.fazenda || '—')}</td>
+          <td><b>${esc(a.placa || '—')}</b></td><td>${a.tipo === 'galoes' ? 'Galão' : 'Tanque'}</td><td class="num">${esc(a.sc || '—')}</td><td>${esc(a.fazenda || '—')}</td>
           <td>${esc(a.combustivel)}</td><td>${esc(a.posto || '—')}</td><td class="r">${fmtL(a.limite)}</td><td class="r${passou ? ' dif' : ''}">${fmtL(r.litros)}</td>
           <td class="r">${r.km != null ? fmtN(r.km) : '—'}</td>
           <td class="nw">${a.assinatura ? `<button class="ico" data-foto="${esc(a.assinatura)}" data-tit="${esc(a.numero)} · assinatura" title="Assinatura">✍️</button>` : ''}${a.pdf ? ` <a class="ico" href="${esc(a.pdf)}" target="_blank" rel="noopener" title="PDF">📄</a>` : ''}</td>
@@ -1359,8 +1367,8 @@ VIEWS['c-aut'] = {
         <div class="resumo"><span><b id="contaCA">${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.retirada.litros, 0))}</b> L</span></div>
         <div class="mesa-barra"><div class="filtros" id="filCA">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidas (últimas)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_CA === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
           <input type="search" id="buscaCA" placeholder="Filtrar por terceiro, placa, fazenda…" value="${esc(BUSCA_CA)}"></div>
-        <div class="mesa-tab"><table class="tab"><thead><tr><th>Nº</th><th>Retirada</th><th>Terceiro</th><th>Placa</th><th>Tipo</th><th>Fazenda</th><th>Comb.</th><th>Posto</th><th class="r">Limite (L)</th><th class="r">Retirado (L)</th><th class="r">Km</th><th>Arquivos</th><th>${p ? 'Observação' : 'Conferência'}</th><th></th></tr></thead>
-        <tbody>${linhas || '<tr><td colspan="14" class="vazio">Nada aqui.</td></tr>'}</tbody></table></div>
+        <div class="mesa-tab"><table class="tab"><thead><tr><th>Nº</th><th>Retirada</th><th>Terceiro</th><th>Placa</th><th>Tipo</th><th>N° SC</th><th>Fazenda</th><th>Comb.</th><th>Posto</th><th class="r">Limite (L)</th><th class="r">Retirado (L)</th><th class="r">Km</th><th>Arquivos</th><th>${p ? 'Observação' : 'Conferência'}</th><th></th></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="15" class="vazio">Nada aqui.</td></tr>'}</tbody></table></div>
         </div>${painelFoto()}</div>`;
     }
     return `<div class="cab"><h1 class="tit">Retiradas de terceiros</h1><button class="btn btn-sec btn-mini" data-go="c-aut">Atualizar</button></div>
