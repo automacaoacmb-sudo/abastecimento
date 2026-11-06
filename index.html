@@ -280,7 +280,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.11.1',
+  VERSAO: '1.11.2',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -648,8 +648,10 @@ function desenharQRs(root){
     el.innerHTML = ''; new QRCode(el, {text: el.dataset.qr, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M});
   });
 }
+/* Assinatura só quando o terceiro abastece o próprio veículo; galão é confirmado só pelo posto */
+const precisaAssinatura = a => a.tipo !== 'galoes';
 function textoAut(a){
-  return `*Requisição de abastecimento ${a.numero}*\n${a.empresa}\n\nAutorizado: ${a.terceiro}\nCPF: ${a.cpf}\n${a.tipo === 'galoes' ? `Retirada: GALÃO para a Fazenda ${a.fazenda}${a.sc ? `\nN° SC: ${a.sc}` : ''}` : `Placa: ${a.placa}\nRetirada: no tanque do veículo (Fazenda ${a.fazenda})`}\nPosto: ${a.posto}\nCombustível: ${a.combustivel}, até ${fmtN(a.limite)} L\nVálida até: ${fmtData(a.validaAte)}\nMotivo: ${a.justificativa}\n\nNo posto, mostre ao frentista a imagem com o QR code. Depois de abastecer, abra o link e assine para confirmar:\n${linkReq(a)}`;
+  return `*Requisição de abastecimento ${a.numero}*\n${a.empresa}\n\nAutorizado: ${a.terceiro}\nCPF: ${a.cpf}\n${a.tipo === 'galoes' ? `Retirada: GALÃO para a Fazenda ${a.fazenda}${a.sc ? `\nN° SC: ${a.sc}` : ''}` : `Placa: ${a.placa}\nRetirada: no tanque do veículo (Fazenda ${a.fazenda})`}\nPosto: ${a.posto}\nCombustível: ${a.combustivel}, até ${fmtN(a.limite)} L\nVálida até: ${fmtData(a.validaAte)}\nMotivo: ${a.justificativa}\n\nNo posto, mostre ao frentista a imagem com o QR code.${precisaAssinatura(a) ? `\nDepois de abastecer, abra o link e assine para confirmar:\n${linkReq(a)}` : ''}`;
 }
 function itemAut(a){
   const [t, s] = stAut(a);
@@ -1097,16 +1099,16 @@ VIEWS.req = {
   },
   html: a => `<button class="voltar" data-go="r-lista">‹ Autorizações</button>${ticketHTML(a)}
     <div class="acoes">
-      <button class="btn btn-wa larga" id="bEnviar">${ICON.wa} Enviar imagem + link</button>
+      <button class="btn btn-wa larga" id="bEnviar">${ICON.wa} ${precisaAssinatura(a) ? 'Enviar imagem + link' : 'Enviar imagem'}</button>
       <a class="btn btn-sec" href="${waLink(textoAut(a))}" target="_blank" rel="noopener">${ICON.wa} Só o texto</a>
       <button class="btn btn-sec" id="bImg">${ICON.share} Imagem</button>
       <button class="btn btn-sec" id="bPdf">${ICON.pdf} PDF</button>
       <button class="btn btn-sec" id="bTxt">Copiar mensagem</button>
-      <a class="btn btn-sec" href="${esc(linkReq(a))}" target="_blank" rel="noopener">Link do terceiro</a>
+      ${precisaAssinatura(a) ? `<a class="btn btn-sec" href="${esc(linkReq(a))}" target="_blank" rel="noopener">Link do terceiro</a>` : ''}
       <a class="btn btn-sec" href="${esc(linkPosto(a))}" target="_blank" rel="noopener">Tela do posto</a>
       ${a.situacao === 'Aguardando retirada' ? '<button class="btn btn-perigo larga" id="bCanc">Cancelar requisição</button>' : ''}
     </div>
-    ${(() => { const e = etapasAut(a); return `<div class="aviso"><b>Andamento</b><br>Posto: ${e.posto ? esc(e.posto) + ' (' + esc(e.porQuem) + ')' : 'aguardando o frentista'}<br>Assinatura do terceiro: ${e.assinatura ? esc(e.assinatura) : 'pendente'}</div>`; })()}
+    ${(() => { const e = etapasAut(a); return `<div class="aviso"><b>Andamento</b><br>Posto: ${e.posto ? esc(e.posto) + ' (' + esc(e.porQuem) + ')' : 'aguardando o frentista'}${precisaAssinatura(a) ? `<br>Assinatura do terceiro: ${e.assinatura ? esc(e.assinatura) : 'pendente'}` : '<br>Galão: não precisa de assinatura, vale a confirmação do posto.'}</div>`; })()}
     <div class="aviso"><b>Como funciona</b><br>Envie a imagem com o link. No posto, o frentista lê o QR code da imagem e confirma a liberação (litros, nome e bomba). Depois de abastecer, o terceiro abre o link e assina. Se o posto não usar o QR, o conferente registra pelo recibo.</div>`,
   bind(m, a){
     desenharQRs(m);
@@ -1136,11 +1138,13 @@ VIEWS.publico = {
     const st = a.situacao, assinou = a.assinado || ASSINATURA_FEITA;
     let topoH = cabStatus(a);
     if(!topoH){
-      if(assinou) topoH = `<div class="estado-grande ok">Assinatura registrada<small>Obrigado! A empresa já recebeu a sua confirmação.${a.retirada ? '' : ' Falta o posto confirmar a liberação.'}</small></div>`;
+      if(!precisaAssinatura(a)) topoH = a.retirada ? `<div class="estado-grande ok">Retirada confirmada pelo posto<small>${fmtL(a.retirada.litros)} L em ${fmtData(a.retirada.em)}.</small></div>`
+        : `<div class="estado-grande warn">Válida · pode retirar<small>Mostre o QR code ao frentista. Até ${fmtN(a.limite)} L de ${esc(a.combustivel)} · válida até ${fmtData(a.validaAte)}</small></div>`;
+      else if(assinou) topoH = `<div class="estado-grande ok">Assinatura registrada<small>Obrigado! A empresa já recebeu a sua confirmação.${a.retirada ? '' : ' Falta o posto confirmar a liberação.'}</small></div>`;
       else if(a.retirada) topoH = `<div class="estado-grande warn">Posto liberou ${fmtL(a.retirada.litros)} L<small>Assine abaixo para confirmar que você abasteceu.</small></div>`;
       else topoH = `<div class="estado-grande warn">Válida · pode abastecer<small>Mostre o QR code ao frentista. Até ${fmtN(a.limite)} L de ${esc(a.combustivel)} · válida até ${fmtData(a.validaAte)}</small></div>`;
     }
-    const podeAssinar = !assinou && (st === 'Aguardando retirada' || st === 'Retirada confirmada');
+    const podeAssinar = precisaAssinatura(a) && !assinou && (st === 'Aguardando retirada' || st === 'Retirada confirmada');
     const form = !podeAssinar ? '' : `<section class="painel"><h2>Assinar</h2>
       <form id="fRet" novalidate>
         <div class="campo" id="cRN"><label class="rot" for="rNome">Seu nome</label><input type="text" id="rNome" value="${esc(a.terceiro)}"></div>
@@ -1465,7 +1469,7 @@ function abrirRecibo(a, D){
     };
   });
 }
-const alertaAut = a => [a.retirada && a.retirada.litros > a.limite ? 'acima do limite' : '', a.retirada && !a.assinado ? 'falta assinatura do terceiro' : ''].filter(Boolean).join(' · ');
+const alertaAut = a => [a.retirada && a.retirada.litros > a.limite ? 'acima do limite' : '', a.retirada && !a.assinado && precisaAssinatura(a) ? 'falta assinatura do terceiro' : ''].filter(Boolean).join(' · ');
 const postoTxt = a => { const r = a.retirada; if(!r) return '—';
   return `${r.frentista ? esc(r.frentista) : ''}${r.bomba ? ' · bomba ' + esc(r.bomba) : ''}<div class="sub">${esc(r.confirmadoPor || '')}</div>`; };
 
@@ -1484,7 +1488,7 @@ VIEWS['c-aut'] = {
         linhas = lst.map(a => `<tr data-n="${esc(a.numero)}" data-busca="${esc([a.numero, a.terceiro, a.placa, a.fazenda, a.posto, a.sc].join(' '))}" class="${a.situacao === 'Vencida' ? 'al-warn' : ''}">
           <td class="num">${esc(a.numero)}</td><td class="nw">${dataCurta(a.emitidaEm)}</td><td>${esc(a.terceiro)}</td>
           <td>${a.tipo === 'galoes' ? 'Galão' : 'Tanque · ' + esc(a.placa)}</td><td class="num">${esc(a.sc || '—')}</td><td>${esc(a.fazenda || '—')}</td><td>${esc(a.combustivel)}</td><td>${esc(a.posto || '—')}</td>
-          <td class="r">${fmtL(a.limite)}</td><td class="nw">${fmtData(a.validaAte)}</td><td>${esc(a.situacao)}</td><td>${a.assinado ? '✓ ' + esc(a.assinado.nome) : '—'}</td>
+          <td class="r">${fmtL(a.limite)}</td><td class="nw">${fmtData(a.validaAte)}</td><td>${esc(a.situacao)}</td><td>${!precisaAssinatura(a) ? '<span class="sub">não precisa</span>' : a.assinado ? '✓ ' + esc(a.assinado.nome) : '—'}</td>
           <td><button class="btn btn-sec btn-mini" data-rec>Registrar recibo</button></td></tr>`).join('');
       } else {
         const p = FILTRO_CA === 'pend';
@@ -1495,7 +1499,7 @@ VIEWS['c-aut'] = {
             <td class="num">${esc(a.numero)}</td><td class="nw">${dataCurta(r.em)}</td><td>${esc(a.terceiro)}</td>
             <td>${a.tipo === 'galoes' ? 'Galão' : 'Tanque · ' + esc(a.placa)}</td><td class="num">${esc(a.sc || '—')}</td><td>${esc(a.fazenda || '—')}</td>
             <td>${esc(a.combustivel)}</td><td>${esc(a.posto || '—')}</td><td class="r">${fmtL(a.limite)}</td><td class="r${r.litros > a.limite ? ' dif' : ''}">${fmtL(r.litros)}</td>
-            <td>${postoTxt(a)}</td><td>${a.assinado ? '✓ ' + esc(a.assinado.nome) + `<div class="sub">${dataCurta(a.assinado.em)}</div>` : '<span class="dif">falta</span>'}</td>
+            <td>${postoTxt(a)}</td><td>${!precisaAssinatura(a) ? '<span class="sub">não precisa</span>' : a.assinado ? '✓ ' + esc(a.assinado.nome) + `<div class="sub">${dataCurta(a.assinado.em)}</div>` : '<span class="dif">falta</span>'}</td>
             <td class="al">${esc(al) || '<span class="ok">ok</span>'}</td>
             <td class="nw">${a.assinatura ? `<button class="ico" data-foto="${esc(a.assinatura)}" data-tit="${esc(a.numero)} · assinatura" title="Assinatura">✍️</button>` : ''}${a.pdf ? ` <a class="ico" href="${esc(a.pdf)}" target="_blank" rel="noopener" title="PDF">📄</a>` : ''}</td>
             ${p ? `<td><input type="text" class="obs" placeholder="Observação (opcional)" value="${esc(a.obsConferencia || '')}"></td><td><button class="btn btn-pri btn-mini" data-ca title="Marcar como conferida (Enter)">✓</button></td>`
