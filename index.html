@@ -280,7 +280,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.11.0',
+  VERSAO: '1.11.1',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -603,7 +603,7 @@ function itemAbast(a, comAlerta){
 
 /* ===================== Autorização: textos e telas ===================== */
 const linkReq = a => `${LINK_BASE}?r=${a.codigo}`;
-const linkPosto = a => a.codigoPosto ? `${LINK_BASE}?p=${a.codigoPosto}` : linkReq(a); // requisições antigas: QR = link do terceiro
+const linkPosto = a => `${LINK_BASE}?p=${a.codigoPosto || a.codigo}`; // requisições antigas (sem código do posto): o servidor aceita o código do terceiro
 /* Situação detalhada: posto confirmou? terceiro assinou? */
 function etapasAut(a){
   const r = a.retirada, ass = a.assinado;
