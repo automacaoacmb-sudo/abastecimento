@@ -280,7 +280,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.10.0',
+  VERSAO: '1.11.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -469,8 +469,8 @@ function abas(){
 const PAI = {req:'r-lista', 'c-det':'c-abast'};
 function go(v, p = null){ VIEW = v; PARAM = p; window.scrollTo(0, 0); render(); }
 function topo(){
-  const pub = VIEW === 'publico';
-  $('#quem').textContent = pub ? 'Requisição para terceiro' : S.sessao ? S.sessao.usuario.nome : 'Requisições e registros';
+  const pub = VIEW === 'publico' || VIEW === 'posto';
+  $('#quem').textContent = VIEW === 'posto' ? 'Validação no posto' : pub ? 'Requisição para terceiro' : S.sessao ? S.sessao.usuario.nome : 'Requisições e registros';
   $('#sair').hidden = !S.sessao || pub || VIEW === 'login';
   $('#main').classList.toggle('publico', pub || VIEW === 'login');
   const tb = $('#tabbar');
@@ -603,6 +603,16 @@ function itemAbast(a, comAlerta){
 
 /* ===================== Autorização: textos e telas ===================== */
 const linkReq = a => `${LINK_BASE}?r=${a.codigo}`;
+const linkPosto = a => a.codigoPosto ? `${LINK_BASE}?p=${a.codigoPosto}` : linkReq(a); // requisições antigas: QR = link do terceiro
+/* Situação detalhada: posto confirmou? terceiro assinou? */
+function etapasAut(a){
+  const r = a.retirada, ass = a.assinado;
+  return {
+    posto: r ? `${fmtL(r.litros)} L · ${fmtData(r.em)}${r.frentista ? ' · ' + r.frentista : ''}${r.bomba ? ' · bomba ' + r.bomba : ''}` : '',
+    porQuem: r ? r.confirmadoPor : '',
+    assinatura: ass ? `${ass.nome} · ${fmtData(ass.em)}` : ''
+  };
+}
 function ticketHTML(a, assinaturaLocal){
   const [t, s] = stAut(a), r = a.retirada;
   return `<article class="ticket">
@@ -622,11 +632,14 @@ function ticketHTML(a, assinaturaLocal){
       <div class="w"><dt>Justificativa</dt><dd style="font-weight:400">${esc(a.justificativa)}</dd></div>
     </dl>
     <div class="t-corte"></div>
-    <div class="t-rod"><div class="qr" data-qr="${esc(linkReq(a))}"></div><p>Frentista: aponte a câmera para o QR code e confira se a requisição está válida e ainda não foi usada.</p></div>
-    ${r ? `<div class="t-ret"><b>Retirada confirmada</b>
+    <div class="t-rod"><div class="qr" data-qr="${esc(linkPosto(a))}"></div><p>Frentista: aponte a câmera para o QR code para validar a requisição e confirmar a liberação.</p></div>
+    ${r ? `<div class="t-ret"><b>Liberação no posto</b>
       <div><span class="n">${fmtL(r.litros)} L</span>${r.km ? ` · Km <span class="n">${fmtN(r.km)}</span>` : ''} · ${fmtData(r.em)}</div>
-      ${assinaturaLocal ? `<img src="${assinaturaLocal}" alt="Assinatura de ${esc(r.nome)}">` : '<div style="font-size:13px;color:var(--paper-muted)">Assinatura registrada no sistema.</div>'}
-      <div>${esc(r.nome)}</div></div>` : ''}
+      ${r.frentista || r.bomba ? `<div>${r.frentista ? 'Frentista ' + esc(r.frentista) : ''}${r.bomba ? ' · bomba ' + esc(r.bomba) : ''}</div>` : ''}
+      <div style="font-size:13px;color:var(--paper-muted)">${esc(r.confirmadoPor || '')}</div></div>` : ''}
+    ${a.assinado || assinaturaLocal ? `<div class="t-ret"><b>Assinatura do terceiro</b>
+      ${assinaturaLocal ? `<img src="${assinaturaLocal}" alt="Assinatura">` : '<div style="font-size:13px;color:var(--paper-muted)">Assinatura registrada no sistema.</div>'}
+      <div>${esc(a.assinado ? a.assinado.nome : '')}${a.assinado ? ' · ' + fmtData(a.assinado.em) : ''}</div></div>` : ''}
   </article>`;
 }
 function desenharQRs(root){
@@ -636,7 +649,7 @@ function desenharQRs(root){
   });
 }
 function textoAut(a){
-  return `*Requisição de abastecimento ${a.numero}*\n${a.empresa}\n\nAutorizado: ${a.terceiro}\nCPF: ${a.cpf}\n${a.tipo === 'galoes' ? `Retirada: GALÃO para a Fazenda ${a.fazenda}${a.sc ? `\nN° SC: ${a.sc}` : ''}` : `Placa: ${a.placa}\nRetirada: no tanque do veículo (Fazenda ${a.fazenda})`}\nPosto: ${a.posto}\nCombustível: ${a.combustivel}, até ${fmtN(a.limite)} L\nVálida até: ${fmtData(a.validaAte)}\nMotivo: ${a.justificativa}\n\nNo posto, abra o link, informe os litros e assine para confirmar a retirada:\n${linkReq(a)}`;
+  return `*Requisição de abastecimento ${a.numero}*\n${a.empresa}\n\nAutorizado: ${a.terceiro}\nCPF: ${a.cpf}\n${a.tipo === 'galoes' ? `Retirada: GALÃO para a Fazenda ${a.fazenda}${a.sc ? `\nN° SC: ${a.sc}` : ''}` : `Placa: ${a.placa}\nRetirada: no tanque do veículo (Fazenda ${a.fazenda})`}\nPosto: ${a.posto}\nCombustível: ${a.combustivel}, até ${fmtN(a.limite)} L\nVálida até: ${fmtData(a.validaAte)}\nMotivo: ${a.justificativa}\n\nNo posto, mostre ao frentista a imagem com o QR code. Depois de abastecer, abra o link e assine para confirmar:\n${linkReq(a)}`;
 }
 function itemAut(a){
   const [t, s] = stAut(a);
@@ -662,7 +675,7 @@ function docAbast(a){
 }
 function docAut(a, assinatura){
   const [t, s] = stAut(a);
-  return { kicker: 'Requisição de abastecimento · terceiro', numero: a.numero, status: [s, t], qr: linkReq(a), campos: [
+  return { kicker: 'Requisição de abastecimento · terceiro', numero: a.numero, status: [s, t], qr: linkPosto(a), campos: [
     ['Autorizado a retirar', a.terceiro], ['CPF', a.cpf, 1, 1],
     ...(a.tipo === 'galoes' ? [['Fazenda destino', a.fazenda, 1], ['N° SC', a.sc || '—', 1, 1], ['Retirada', 'GALÃO', 1]]
       : [['Placa', a.placa, 1, 1], ['Retirada', 'No tanque do veículo', 1], ['Fazenda', a.fazenda, 1]]),
@@ -734,13 +747,13 @@ async function gerarArquivo(doc, nome, tipo){
   pdf.addImage(cv.toDataURL('image/jpeg', .9), 'JPEG', 15 + (larg - larg * escala) / 2, 10, larg * escala, alt * escala);
   return new File([pdf.output('blob')], `${nome}.pdf`, {type:'application/pdf'});
 }
-async function compartilharDoc(doc, nome, tipo){
+async function compartilharDoc(doc, nome, tipo, texto){
   toast(tipo === 'pdf' ? 'Gerando PDF…' : 'Gerando imagem…');
   let arq;
   try { arq = await gerarArquivo(doc, nome || 'documento', tipo); }
   catch(e){ toast(e.message, 'bad'); return; }
   try {
-    if(navigator.canShare && navigator.canShare({files:[arq]})){ await navigator.share({files:[arq], title: arq.name}); return; }
+    if(navigator.canShare && navigator.canShare({files:[arq]})){ await navigator.share(texto ? {files:[arq], text: texto} : {files:[arq], title: arq.name}); return; }
   } catch(e){ if(e.name === 'AbortError') return; }
   const url = URL.createObjectURL(arq);
   if(tipo === 'pdf'){ const a = document.createElement('a'); a.href = url; a.download = arq.name; document.body.appendChild(a); a.click(); a.remove(); toast('PDF baixado.'); }
@@ -1084,17 +1097,21 @@ VIEWS.req = {
   },
   html: a => `<button class="voltar" data-go="r-lista">‹ Autorizações</button>${ticketHTML(a)}
     <div class="acoes">
-      <a class="btn btn-wa larga" href="${waLink(textoAut(a))}" target="_blank" rel="noopener">${ICON.wa} Enviar pelo WhatsApp</a>
+      <button class="btn btn-wa larga" id="bEnviar">${ICON.wa} Enviar imagem + link</button>
+      <a class="btn btn-sec" href="${waLink(textoAut(a))}" target="_blank" rel="noopener">${ICON.wa} Só o texto</a>
       <button class="btn btn-sec" id="bImg">${ICON.share} Imagem</button>
       <button class="btn btn-sec" id="bPdf">${ICON.pdf} PDF</button>
       <button class="btn btn-sec" id="bTxt">Copiar mensagem</button>
-      <a class="btn btn-sec" href="${esc(linkReq(a))}" target="_blank" rel="noopener">Abrir link</a>
+      <a class="btn btn-sec" href="${esc(linkReq(a))}" target="_blank" rel="noopener">Link do terceiro</a>
+      <a class="btn btn-sec" href="${esc(linkPosto(a))}" target="_blank" rel="noopener">Tela do posto</a>
       ${a.situacao === 'Aguardando retirada' ? '<button class="btn btn-perigo larga" id="bCanc">Cancelar requisição</button>' : ''}
     </div>
-    <div class="aviso"><b>Como funciona</b><br>Mande pelo WhatsApp. No posto, o terceiro abre o link, informa os litros e assina na tela. O frentista confere pelo QR code. A requisição só pode ser usada uma vez.</div>`,
+    ${(() => { const e = etapasAut(a); return `<div class="aviso"><b>Andamento</b><br>Posto: ${e.posto ? esc(e.posto) + ' (' + esc(e.porQuem) + ')' : 'aguardando o frentista'}<br>Assinatura do terceiro: ${e.assinatura ? esc(e.assinatura) : 'pendente'}</div>`; })()}
+    <div class="aviso"><b>Como funciona</b><br>Envie a imagem com o link. No posto, o frentista lê o QR code da imagem e confirma a liberação (litros, nome e bomba). Depois de abastecer, o terceiro abre o link e assina. Se o posto não usar o QR, o conferente registra pelo recibo.</div>`,
   bind(m, a){
     desenharQRs(m);
     $('#bImg', m).onclick = () => compartilharDoc(docAut(a), a.numero, 'imagem');
+    $('#bEnviar', m).onclick = () => compartilharDoc(docAut(a), a.numero, 'imagem', textoAut(a));
     $('#bPdf', m).onclick = () => compartilharDoc(docAut(a), a.numero, 'pdf');
     $('#bTxt', m).onclick = () => copiar(textoAut(a));
     const c = $('#bCanc', m);
@@ -1105,28 +1122,34 @@ VIEWS.req = {
 };
 
 let PAD = null, ASSINATURA_FEITA = null;
+const cabStatus = (a, assinou) => {
+  const st = a.situacao;
+  if(st === 'Vencida') return `<div class="estado-grande bad">Vencida<small>Válida só até ${fmtData(a.validaAte)}. Não abastecer.</small></div>`;
+  if(st === 'Cancelada') return `<div class="estado-grande bad">Cancelada<small>Esta requisição foi cancelada pela empresa. Não abastecer.</small></div>`;
+  return '';
+};
+
+/* Link do terceiro (?r=): mostra a requisição (com o QR para o posto) e pede só a assinatura */
 VIEWS.publico = {
   load: () => api('requisicaoPublica', {codigo: PARAM}),
   html(a){
-    const st = a.situacao;
-    let topoH;
-    if(st === 'Aguardando retirada') topoH = `<div class="estado-grande warn">Válida · pode abastecer<small>Até ${fmtN(a.limite)} L de ${esc(a.combustivel)} · válida até ${fmtData(a.validaAte)}</small></div>`;
-    else if(st === 'Retirada confirmada') topoH = `<div class="estado-grande ${ASSINATURA_FEITA ? 'ok' : 'bad'}">${ASSINATURA_FEITA ? 'Retirada confirmada' : 'Já utilizada'}<small>${ASSINATURA_FEITA ? 'Obrigado! A empresa já recebeu a confirmação.' : `Retirada confirmada em ${fmtData(a.retirada.em)}. Não abastecer de novo.`}</small></div>`;
-    else if(st === 'Vencida') topoH = `<div class="estado-grande bad">Vencida<small>Válida só até ${fmtData(a.validaAte)}. Não abastecer.</small></div>`;
-    else topoH = `<div class="estado-grande bad">Cancelada<small>Esta requisição foi cancelada pela empresa. Não abastecer.</small></div>`;
-    const form = st !== 'Aguardando retirada' ? '' : `<section class="painel"><h2>Confirmar retirada</h2>
+    const st = a.situacao, assinou = a.assinado || ASSINATURA_FEITA;
+    let topoH = cabStatus(a);
+    if(!topoH){
+      if(assinou) topoH = `<div class="estado-grande ok">Assinatura registrada<small>Obrigado! A empresa já recebeu a sua confirmação.${a.retirada ? '' : ' Falta o posto confirmar a liberação.'}</small></div>`;
+      else if(a.retirada) topoH = `<div class="estado-grande warn">Posto liberou ${fmtL(a.retirada.litros)} L<small>Assine abaixo para confirmar que você abasteceu.</small></div>`;
+      else topoH = `<div class="estado-grande warn">Válida · pode abastecer<small>Mostre o QR code ao frentista. Até ${fmtN(a.limite)} L de ${esc(a.combustivel)} · válida até ${fmtData(a.validaAte)}</small></div>`;
+    }
+    const podeAssinar = !assinou && (st === 'Aguardando retirada' || st === 'Retirada confirmada');
+    const form = !podeAssinar ? '' : `<section class="painel"><h2>Assinar</h2>
       <form id="fRet" novalidate>
-        <div class="grid2">
-          <div class="campo" id="cRL"><label class="rot" for="rLit">Litros retirados</label><input type="text" id="rLit" inputmode="decimal" class="num" placeholder="Até ${fmtN(a.limite)}"></div>
-          <div class="campo"${a.tipo === 'galoes' ? ' hidden' : ''}><label class="rot" for="rKm">Km do veículo <em>(opcional)</em></label><input type="text" id="rKm" inputmode="numeric" class="num" placeholder="Ex.: 231.870"></div>
-        </div>
         <div class="campo" id="cRN"><label class="rot" for="rNome">Seu nome</label><input type="text" id="rNome" value="${esc(a.terceiro)}"></div>
         <div class="campo" id="cAss"><span class="rot">Assinatura</span>
           <div class="assin"><canvas id="cv" aria-label="Área para assinar com o dedo"></canvas><div class="linha"></div><span class="dica">Assine com o dedo</span><button type="button" class="limpar" id="limpar">Limpar</button></div></div>
-        <div class="campo" id="cChk"><label class="check"><input type="checkbox" id="rChk"><span>Confirmo que retirei o combustível acima em nome de ${esc(a.empresa)}, conforme esta requisição.</span></label></div>
-        <button class="btn btn-pri btn-bloco" type="submit" id="btRet">Confirmar retirada</button>
+        <div class="campo" id="cChk"><label class="check"><input type="checkbox" id="rChk"><span>Confirmo que abasteci${a.retirada ? ` ${fmtL(a.retirada.litros)} L` : ''} em nome de ${esc(a.empresa)}, conforme esta requisição.</span></label></div>
+        <button class="btn btn-pri btn-bloco" type="submit" id="btRet">Assinar e confirmar</button>
       </form></section>`;
-    const docs = st === 'Retirada confirmada' && ASSINATURA_FEITA ? `<div class="acoes"><button class="btn btn-sec" id="pImg">${ICON.share} Imagem</button><button class="btn btn-sec" id="pPdf">${ICON.pdf} PDF</button></div>` : '';
+    const docs = assinou ? `<div class="acoes"><button class="btn btn-sec" id="pImg">${ICON.share} Imagem</button><button class="btn btn-sec" id="pPdf">${ICON.pdf} PDF</button></div>` : '';
     return topoH + ticketHTML(a, ASSINATURA_FEITA) + docs + form;
   },
   bind(m, a){
@@ -1138,21 +1161,72 @@ VIEWS.publico = {
     PAD = padAssinatura($('#cv', m)); $('#limpar', m).onclick = () => PAD.limpar();
     f.onsubmit = async e => {
       e.preventDefault(); limparErros(f); let ok = true; const err = (c, msg) => { marcarErro($(c, m), msg); ok = false; };
-      const lit = num($('#rLit', m).value);
-      if(!(lit > 0)) err('#cRL', 'Informe os litros.'); else if(lit > a.limite) err('#cRL', `Acima do limite autorizado de ${fmtN(a.limite)} L.`);
       if($('#rNome', m).value.trim().length < 3) err('#cRN', 'Informe seu nome.');
       if(PAD.vazio()) err('#cAss', 'Assine no quadro acima.');
       if(!$('#rChk', m).checked) err('#cChk', 'Marque a confirmação.');
       if(!ok){ rolarErro(m); return; }
       const assinatura = PAD.png();
-      await ocupado($('#btRet', m), 'Confirmando…', async () => {
-        try { await api('confirmarRetirada', {codigo: PARAM, litros: $('#rLit', m).value, km: $('#rKm', m).value, nome: $('#rNome', m).value.trim(), assinatura});
-          ASSINATURA_FEITA = assinatura; toast('Retirada confirmada. Obrigado!'); window.scrollTo(0, 0); render(); }
-        catch(er){ toast(er.rede ? 'Sem internet. Para confirmar a retirada precisa de sinal. Tente de novo.' : er.message, 'bad'); }
+      await ocupado($('#btRet', m), 'Enviando…', async () => {
+        try { await api('assinarRetirada', {codigo: PARAM, nome: $('#rNome', m).value.trim(), assinatura});
+          ASSINATURA_FEITA = assinatura; toast('Assinatura registrada. Obrigado!'); window.scrollTo(0, 0); render(); }
+        catch(er){ toast(er.rede ? 'Sem internet. Para assinar precisa de sinal. Tente de novo.' : er.message, 'bad'); }
       });
     };
   }
 };
+
+/* QR code (?p=): tela do frentista para validar e confirmar a liberação */
+VIEWS.posto = {
+  load: () => api('requisicaoPosto', {codigo: PARAM}),
+  html(a){
+    const st = a.situacao, r = a.retirada;
+    let topoH = cabStatus(a);
+    if(!topoH && r) topoH = `<div class="estado-grande ${POSTO_OK ? 'ok' : 'bad'}">${POSTO_OK ? 'Liberação confirmada' : 'Já utilizada'}<small>${fmtL(r.litros)} L em ${fmtData(r.em)}${r.frentista ? ' · ' + esc(r.frentista) : ''}${r.bomba ? ' · bomba ' + esc(r.bomba) : ''}.${POSTO_OK ? ' Obrigado!' : ' Não abastecer de novo.'}</small></div>`;
+    if(!topoH) topoH = `<div class="estado-grande ok">Válida · pode liberar<small>Até ${fmtN(a.limite)} L de ${esc(a.combustivel)} · válida até ${fmtData(a.validaAte)}</small></div>`;
+    const g = a.tipo === 'galoes';
+    const dados = `<dl class="dados">
+      <div><dt>Requisição</dt><dd>${esc(a.numero)} · ${esc(a.empresa)}</dd></div>
+      <div><dt>Quem retira</dt><dd>${esc(a.terceiro)} · CPF ${esc(a.cpf)}</dd></div>
+      <div><dt>Retirada</dt><dd>${g ? `GALÃO · Fazenda ${esc(a.fazenda)}${a.sc ? ' · SC ' + esc(a.sc) : ''}` : `No tanque do veículo · placa ${esc(a.placa)}`}</dd></div>
+      <div><dt>Combustível</dt><dd>${esc(a.combustivel)} · até ${fmtN(a.limite)} L</dd></div>
+      <div><dt>Posto indicado</dt><dd>${esc(a.posto || '—')}</dd></div></dl>`;
+    const form = st !== 'Aguardando retirada' ? '' : `<section class="painel"><h2>Confirmar liberação</h2>
+      <form id="fPosto" novalidate>
+        <div class="campo" id="cPL"><span class="rot">Litros</span>
+          <div class="estado-grande warn" style="margin:0" id="pLibera">${fmtN(a.limite)} L<small>quantidade liberada</small></div>
+          <button type="button" class="btn btn-sec btn-mini" id="pOutra" style="margin-top:8px">Outra quantidade</button>
+          <input type="text" id="pLit" inputmode="decimal" class="num" placeholder="Litros abastecidos (até ${fmtN(a.limite)})" hidden style="margin-top:8px"></div>
+        <div class="grid2">
+          <div class="campo" id="cPF"><label class="rot" for="pFrent">Frentista</label><input type="text" id="pFrent" autocomplete="name" value="${esc(lsGet('abast_frentista') || '')}" placeholder="Seu nome"></div>
+          <div class="campo" id="cPB"><label class="rot" for="pBomba">Nº da bomba</label><input type="text" id="pBomba" inputmode="numeric" class="num" placeholder="Ex.: 3"></div>
+        </div>
+        <p class="ajuda">O horário é registrado na hora da confirmação. A requisição só pode ser usada uma vez.</p>
+        <button class="btn btn-pri btn-bloco" type="submit" id="btPosto">Confirmar liberação</button>
+      </form></section>`;
+    return topoH + dados + form;
+  },
+  bind(m, a){
+    const f = $('#fPosto', m); if(!f) return;
+    $('#pOutra', m).onclick = () => { const i = $('#pLit', m), outra = i.hidden; i.hidden = !outra; $('#pLibera', m).style.opacity = outra ? .4 : 1;
+      $('#pOutra', m).textContent = outra ? `Usar ${fmtN(a.limite)} L liberados` : 'Outra quantidade'; if(outra) i.focus(); };
+    f.onsubmit = async e => {
+      e.preventDefault(); limparErros(f); let ok = true; const err = (c, msg) => { marcarErro($(c, m), msg); ok = false; };
+      const outra = !$('#pLit', m).hidden, lit = outra ? num($('#pLit', m).value) : a.limite;
+      if(!(lit > 0)) err('#cPL', 'Informe os litros.'); else if(lit > a.limite) err('#cPL', `Acima do limite autorizado de ${fmtN(a.limite)} L.`);
+      const frent = $('#pFrent', m).value.trim(), bomba = $('#pBomba', m).value.trim();
+      if(frent.length < 2) err('#cPF', 'Informe seu nome.');
+      if(!bomba) err('#cPB', 'Informe a bomba.');
+      if(!ok){ rolarErro(m); return; }
+      lsSet('abast_frentista', frent);
+      await ocupado($('#btPosto', m), 'Confirmando…', async () => {
+        try { await api('confirmarPosto', {codigo: PARAM, litros: String(lit).replace('.', ','), frentista: frent, bomba});
+          POSTO_OK = true; toast('Liberação confirmada.'); window.scrollTo(0, 0); render(); }
+        catch(er){ toast(er.rede ? 'Sem internet. Para confirmar precisa de sinal. Tente de novo.' : er.message, 'bad'); }
+      });
+    };
+  }
+};
+let POSTO_OK = false;
 
 /* Leitura das fotos do painel pelo robô: automática às 20h (e 8h30 na segunda e no dia 1) ou quando pedida aqui. */
 const fmtQuando = iso => { if(!iso) return ''; const d = new Date(iso), hoje = new Date();
@@ -1361,40 +1435,88 @@ VIEWS['c-det'] = {
   }
 };
 
+/* Recibo do posto: o conferente registra a retirada quando o posto não usou o QR code */
+function abrirRecibo(a, D){
+  abrirFolha(`<h2>Registrar pelo recibo · ${esc(a.numero)}</h2>
+    <p class="ajuda">${esc(a.terceiro)} · ${a.tipo === 'galoes' ? 'Galão' : 'Placa ' + esc(a.placa)} · ${esc(a.combustivel)} · até ${fmtN(a.limite)} L · ${esc(a.posto || '')}</p>
+    <form id="fRec" novalidate>
+      <div class="grid2">
+        <div class="campo" id="cRcL"><label class="rot" for="rcLit">Litros do recibo</label><input type="text" id="rcLit" inputmode="decimal" class="num" value="${fmtN(a.limite)}"></div>
+        <div class="campo"><label class="rot" for="rcData">Data da retirada</label><input type="date" id="rcData" value="${hojeISO()}" max="${hojeISO()}"></div>
+      </div>
+      <div class="grid2">
+        <div class="campo"><label class="rot" for="rcFrent">Frentista <em>(se tiver)</em></label><input type="text" id="rcFrent"></div>
+        <div class="campo"><label class="rot" for="rcBomba">Bomba <em>(se tiver)</em></label><input type="text" id="rcBomba" class="num"></div>
+      </div>
+      <div class="campo"><label class="rot" for="rcObs">Observação</label><textarea id="rcObs" placeholder="Ex.: recibo nº 1234 enviado pelo posto no fechamento"></textarea></div>
+      <button class="btn btn-pri btn-bloco" type="submit" id="rcOk">Registrar retirada</button>
+    </form>`, bb => {
+    $('#fRec', bb).onsubmit = e => { e.preventDefault();
+      const lit = num($('#rcLit', bb).value);
+      if(!(lit > 0) || lit > a.limite){ marcarErro($('#cRcL', bb), lit > a.limite ? `Acima do limite de ${fmtN(a.limite)} L.` : 'Informe os litros.'); return; }
+      ocupado($('#rcOk', bb), 'Salvando…', async () => {
+        try {
+          const rec = await apiPin('registrarRecibo', {numero: a.numero, litros: $('#rcLit', bb).value, data: $('#rcData', bb).value,
+            frentista: $('#rcFrent', bb).value.trim(), bomba: $('#rcBomba', bb).value.trim(), obs: $('#rcObs', bb).value.trim()});
+          D.semRetirada = (D.semRetirada || []).filter(x => x.numero !== a.numero); D.retiradasPendentes = [rec].concat(D.retiradasPendentes);
+          S.cache.conf = D; salvarCache(); fecharFolha(); toast(`${a.numero}: retirada registrada. Confira na aba "A conferir".`); render();
+        } catch(er){ toast(er.message, 'bad'); }
+      });
+    };
+  });
+}
+const alertaAut = a => [a.retirada && a.retirada.litros > a.limite ? 'acima do limite' : '', a.retirada && !a.assinado ? 'falta assinatura do terceiro' : ''].filter(Boolean).join(' · ');
+const postoTxt = a => { const r = a.retirada; if(!r) return '—';
+  return `${r.frentista ? esc(r.frentista) : ''}${r.bomba ? ' · bomba ' + esc(r.bomba) : ''}<div class="sub">${esc(r.confirmadoPor || '')}</div>`; };
+
 VIEWS['c-aut'] = {
   chave: 'conf',
   buscar: () => apiPin('listarConferencia'),
   html(D){
-    const pend = D.retiradasPendentes, confs = D.retiradasConferidas, lst = FILTRO_CA === 'pend' ? pend : confs;
+    const pend = D.retiradasPendentes, confs = D.retiradasConferidas, sem = D.semRetirada || [];
+    const lst = FILTRO_CA === 'pend' ? pend : FILTRO_CA === 'sem' ? sem : confs;
+    const filtros = `<div class="filtros" id="filCA">${[['pend', 'A conferir', pend.length], ['sem', 'Sem confirmação do posto', sem.length], ['conf', 'Conferidas (últimas)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_CA === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>`;
+    const resumo = `<div class="resumo"><span><b id="contaCA">${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.retirada.litros, 0))}</b> L</span>${sem.length ? chip('warn', `${sem.length} sem confirmação do posto`) : ''}</div>`;
     if(MESA()){
-      const p = FILTRO_CA === 'pend';
-      const linhas = lst.slice().sort((x, y) => String(x.retirada.em).localeCompare(String(y.retirada.em))).map(a => {
-        const r = a.retirada, passou = r.litros > a.limite;
-        return `<tr data-n="${esc(a.numero)}" data-busca="${esc([a.numero, a.terceiro, a.placa, a.fazenda, a.posto, a.sc].join(' '))}" class="${passou ? 'al-bad' : ''}">
-          <td class="num">${esc(a.numero)}</td><td class="nw">${dataCurta(r.em)}</td><td>${esc(a.terceiro)}<div class="sub">assinou: ${esc(r.nome || '—')}</div></td>
-          <td><b>${esc(a.placa || '—')}</b></td><td>${a.tipo === 'galoes' ? 'Galão' : 'Tanque'}</td><td class="num">${esc(a.sc || '—')}</td><td>${esc(a.fazenda || '—')}</td>
-          <td>${esc(a.combustivel)}</td><td>${esc(a.posto || '—')}</td><td class="r">${fmtL(a.limite)}</td><td class="r${passou ? ' dif' : ''}">${fmtL(r.litros)}</td>
-          <td class="r">${r.km != null ? fmtN(r.km) : '—'}</td>
-          <td class="nw">${a.assinatura ? `<button class="ico" data-foto="${esc(a.assinatura)}" data-tit="${esc(a.numero)} · assinatura" title="Assinatura">✍️</button>` : ''}${a.pdf ? ` <a class="ico" href="${esc(a.pdf)}" target="_blank" rel="noopener" title="PDF">📄</a>` : ''}</td>
-          ${p ? `<td><input type="text" class="obs" placeholder="Observação (opcional)" value="${esc(a.obsConferencia || '')}"></td><td><button class="btn btn-pri btn-mini" data-ca title="Marcar como conferida (Enter)">✓</button></td>`
-            : `<td colspan="2">${esc(`${a.conferencia} · ${a.conferidoPor}${a.obsConferencia ? ' · ' + a.obsConferencia : ''}`)}</td>`}</tr>`;
-      }).join('');
+      let cab, linhas;
+      if(FILTRO_CA === 'sem'){
+        cab = '<th>Nº</th><th>Emitida</th><th>Terceiro</th><th>Tipo</th><th>N° SC</th><th>Fazenda</th><th>Comb.</th><th>Posto</th><th class="r">Limite (L)</th><th>Válida até</th><th>Situação</th><th>Assinatura</th><th></th>';
+        linhas = lst.map(a => `<tr data-n="${esc(a.numero)}" data-busca="${esc([a.numero, a.terceiro, a.placa, a.fazenda, a.posto, a.sc].join(' '))}" class="${a.situacao === 'Vencida' ? 'al-warn' : ''}">
+          <td class="num">${esc(a.numero)}</td><td class="nw">${dataCurta(a.emitidaEm)}</td><td>${esc(a.terceiro)}</td>
+          <td>${a.tipo === 'galoes' ? 'Galão' : 'Tanque · ' + esc(a.placa)}</td><td class="num">${esc(a.sc || '—')}</td><td>${esc(a.fazenda || '—')}</td><td>${esc(a.combustivel)}</td><td>${esc(a.posto || '—')}</td>
+          <td class="r">${fmtL(a.limite)}</td><td class="nw">${fmtData(a.validaAte)}</td><td>${esc(a.situacao)}</td><td>${a.assinado ? '✓ ' + esc(a.assinado.nome) : '—'}</td>
+          <td><button class="btn btn-sec btn-mini" data-rec>Registrar recibo</button></td></tr>`).join('');
+      } else {
+        const p = FILTRO_CA === 'pend';
+        cab = `<th>Nº</th><th>Retirada</th><th>Terceiro</th><th>Tipo</th><th>N° SC</th><th>Fazenda</th><th>Comb.</th><th>Posto</th><th class="r">Limite (L)</th><th class="r">Retirado (L)</th><th>Liberação</th><th>Assinatura</th><th>Alerta</th><th>Arquivos</th><th>${p ? 'Observação' : 'Conferência'}</th><th></th>`;
+        linhas = lst.slice().sort((x, y) => String(x.retirada.em).localeCompare(String(y.retirada.em))).map(a => {
+          const r = a.retirada, al = alertaAut(a);
+          return `<tr data-n="${esc(a.numero)}" data-busca="${esc([a.numero, a.terceiro, a.placa, a.fazenda, a.posto, a.sc, r.frentista].join(' '))}" class="${al ? 'al-bad' : ''}">
+            <td class="num">${esc(a.numero)}</td><td class="nw">${dataCurta(r.em)}</td><td>${esc(a.terceiro)}</td>
+            <td>${a.tipo === 'galoes' ? 'Galão' : 'Tanque · ' + esc(a.placa)}</td><td class="num">${esc(a.sc || '—')}</td><td>${esc(a.fazenda || '—')}</td>
+            <td>${esc(a.combustivel)}</td><td>${esc(a.posto || '—')}</td><td class="r">${fmtL(a.limite)}</td><td class="r${r.litros > a.limite ? ' dif' : ''}">${fmtL(r.litros)}</td>
+            <td>${postoTxt(a)}</td><td>${a.assinado ? '✓ ' + esc(a.assinado.nome) + `<div class="sub">${dataCurta(a.assinado.em)}</div>` : '<span class="dif">falta</span>'}</td>
+            <td class="al">${esc(al) || '<span class="ok">ok</span>'}</td>
+            <td class="nw">${a.assinatura ? `<button class="ico" data-foto="${esc(a.assinatura)}" data-tit="${esc(a.numero)} · assinatura" title="Assinatura">✍️</button>` : ''}${a.pdf ? ` <a class="ico" href="${esc(a.pdf)}" target="_blank" rel="noopener" title="PDF">📄</a>` : ''}</td>
+            ${p ? `<td><input type="text" class="obs" placeholder="Observação (opcional)" value="${esc(a.obsConferencia || '')}"></td><td><button class="btn btn-pri btn-mini" data-ca title="Marcar como conferida (Enter)">✓</button></td>`
+              : `<td colspan="2">${esc(`${a.conferencia} · ${a.conferidoPor}${a.obsConferencia ? ' · ' + a.obsConferencia : ''}`)}</td>`}</tr>`;
+        }).join('');
+      }
       return `<div class="mesa"><div class="mesa-main">
         <div class="cab"><h1 class="tit">Retiradas de terceiros</h1><button class="btn btn-sec btn-mini" data-go="c-aut">Atualizar</button></div>
-        <div class="resumo"><span><b id="contaCA">${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.retirada.litros, 0))}</b> L</span></div>
-        <div class="mesa-barra"><div class="filtros" id="filCA">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidas (últimas)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_CA === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
-          <input type="search" id="buscaCA" placeholder="Filtrar por terceiro, placa, fazenda…" value="${esc(BUSCA_CA)}"></div>
-        <div class="mesa-tab"><table class="tab"><thead><tr><th>Nº</th><th>Retirada</th><th>Terceiro</th><th>Placa</th><th>Tipo</th><th>N° SC</th><th>Fazenda</th><th>Comb.</th><th>Posto</th><th class="r">Limite (L)</th><th class="r">Retirado (L)</th><th class="r">Km</th><th>Arquivos</th><th>${p ? 'Observação' : 'Conferência'}</th><th></th></tr></thead>
-        <tbody>${linhas || '<tr><td colspan="15" class="vazio">Nada aqui.</td></tr>'}</tbody></table></div>
+        ${resumo}
+        <div class="mesa-barra">${filtros}<input type="search" id="buscaCA" placeholder="Filtrar por terceiro, placa, fazenda…" value="${esc(BUSCA_CA)}"></div>
+        <div class="mesa-tab"><table class="tab"><thead><tr>${cab}</tr></thead>
+        <tbody>${linhas || '<tr><td colspan="16" class="vazio">Nada aqui.</td></tr>'}</tbody></table></div>
         </div>${painelFoto()}</div>`;
     }
     return `<div class="cab"><h1 class="tit">Retiradas de terceiros</h1><button class="btn btn-sec btn-mini" data-go="c-aut">Atualizar</button></div>
-      <div class="resumo"><span><b>${pend.length}</b> a conferir · <b>${fmtL(pend.reduce((s, a) => s + a.retirada.litros, 0))}</b> L</span></div>
-      <div class="filtros" id="filCA">${[['pend', 'A conferir', pend.length], ['conf', 'Conferidas (últimas)', confs.length]].map(([k, l, n]) => `<button data-f="${k}" class="${FILTRO_CA === k ? 'on' : ''}">${l}<b>${n}</b></button>`).join('')}</div>
+      ${resumo}${filtros}
       <div class="lista">${lst.length ? lst.map(itemAut).join('') : '<div class="vazio">Nada aqui.</div>'}</div>`;
   },
   bind(m, D){
     $('#filCA', m).onclick = e => { const b = e.target.closest('button'); if(b){ FILTRO_CA = b.dataset.f; render(); } };
+    const achar = n => D.retiradasPendentes.concat(D.retiradasConferidas, D.semRetirada || []).find(x => x.numero === n);
     if(MESA()){
       ligarPainelFoto(m);
       const M = $('.mesa', m), busca = $('#buscaCA', m);
@@ -1409,19 +1531,26 @@ VIEWS['c-aut'] = {
           const o = prox && $('.obs', prox); if(o) o.focus();
         } catch(er){ toast(er.message, 'bad'); }
       });
-      M.addEventListener('click', e => { const b = e.target.closest('[data-ca]'); if(b) conferir(b.closest('tr'), b); });
+      M.addEventListener('click', e => {
+        const b = e.target.closest('[data-ca]'); if(b) conferir(b.closest('tr'), b);
+        const r = e.target.closest('[data-rec]'); if(r){ const a = achar(r.closest('tr').dataset.n); if(a) abrirRecibo(a, D); }
+      });
       M.addEventListener('keydown', e => { if(e.key === 'Enter' && e.target.classList.contains('obs')){ e.preventDefault(); const tr = e.target.closest('tr'); conferir(tr, $('[data-ca]', tr)); } });
       return;
     }
     m.querySelectorAll('[data-aut]').forEach(b => b.onclick = () => {
-      const a = D.retiradasPendentes.concat(D.retiradasConferidas).find(x => x.numero === b.dataset.aut); if(!a) return;
+      const a = achar(b.dataset.aut); if(!a) return;
+      if(!a.retirada){ abrirRecibo(a, D); return; }
+      const al = alertaAut(a);
       abrirFolha(`${ticketHTML(a)}<section class="painel"><h2>Conferência</h2>
         ${a.conferencia ? `<p class="ajuda">${esc(a.conferencia)} por ${esc(a.conferidoPor)}.</p>` : ''}
-        <p class="ajuda">Retirou ${fmtL(a.retirada.litros)} L de ${fmtN(a.limite)} L autorizados.${a.pdf ? ` <a href="${esc(a.pdf)}" target="_blank" rel="noopener" style="color:var(--link)">Abrir PDF com assinatura</a>` : ''}</p>
-        <div class="campo"><label class="rot" for="caObs">Observação</label><textarea id="caObs">${esc(a.obsConferencia || '')}</textarea></div>
-        <button class="btn btn-pri btn-bloco" id="caOk">${ICON.conf} Marcar como conferida</button></section>`, bb => {
+        ${al ? `<div class="analise alerta"><strong>⚠ ${esc(al)}</strong></div>` : ''}
+        <p class="ajuda">Retirou ${fmtL(a.retirada.litros)} L de ${fmtN(a.limite)} L autorizados.${a.pdf ? ` <a href="${esc(a.pdf)}" target="_blank" rel="noopener" style="color:var(--link)">Abrir PDF</a>` : ''}</p>
+        ${a.conferencia ? '' : `<div class="campo"><label class="rot" for="caObs">Observação</label><textarea id="caObs">${esc(a.obsConferencia || '')}</textarea></div>
+        <button class="btn btn-pri btn-bloco" id="caOk">${ICON.conf} Marcar como conferida</button>`}</section>`, bb => {
         desenharQRs(bb);
-        $('#caOk', bb).onclick = e => ocupado(e.currentTarget, 'Salvando…', async () => {
+        const ok = $('#caOk', bb);
+        if(ok) ok.onclick = e => ocupado(e.currentTarget, 'Salvando…', async () => {
           try { const rec = await apiPin('conferirAutorizacao', {numero: a.numero, obs: $('#caObs', bb).value.trim()});
             D.retiradasPendentes = D.retiradasPendentes.filter(x => x.numero !== a.numero); D.retiradasConferidas = [rec].concat(D.retiradasConferidas.filter(x => x.numero !== a.numero));
             S.cache.conf = D; salvarCache(); fecharFolha(); toast(`${a.numero} conferida.`); render(); }
@@ -1454,8 +1583,9 @@ async function atualizarSessao(){
 /* ===================== Início ===================== */
 if('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 $('#offline').hidden = navigator.onLine;
-const codigo = new URLSearchParams(location.search).get('r');
-if(codigo) go('publico', codigo);
+const qs = new URLSearchParams(location.search), codigo = qs.get('r'), codigoPosto = qs.get('p');
+if(codigoPosto) go('posto', codigoPosto);
+else if(codigo) go('publico', codigo);
 else if(S.sessao){ go(abas()[0][0]); atualizarSessao(); processarFila(); }
 else { go('login'); if(navigator.onLine) api('ping').catch(() => {}); } // acorda o servidor enquanto a pessoa digita o PIN
 </script>
