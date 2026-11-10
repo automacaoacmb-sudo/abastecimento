@@ -280,7 +280,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--brand);outline:none;b
 /* ===================== Configuração ===================== */
 const CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbyX3wZWVa6rlE18l7BOzBVVwOeQW6KkVsx_QGdtCmDnMRn0fM1KHLNdldGWN00DBZho/exec',
-  VERSAO: '1.11.2',
+  VERSAO: '1.12.0',
   JSPDF: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
 };
 const LINK_BASE = location.origin + location.pathname.replace(/index\.html$/, '');
@@ -547,6 +547,28 @@ function limparErros(f){ $$('.invalido', f).forEach(c => c.classList.remove('inv
 function rolarErro(m){ $('.invalido', m)?.scrollIntoView({behavior:'smooth', block:'center'}); }
 
 /* ===================== Abastecimento: textos e telas ===================== */
+/* Campo Posto: lista dos autorizados (aba Postos) com o preferencial escolhido; "Outro posto" abre para digitar.
+   O valor final fica sempre no input #id (o resto do formulário lê dele). Sem lista cadastrada = campo livre como antes. */
+function htmlPosto(id, campoId, etiqueta){
+  const c = S.sessao.cadastros, aut = c.postosAut || [];
+  if(!aut.length) return `<div class="campo" id="${campoId}"><label class="rot" for="${id}">Posto</label><input type="text" id="${id}" list="${id}Lista" placeholder="Nome do posto e cidade" autocomplete="off">
+    <datalist id="${id}Lista">${(c.postos || []).map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>`;
+  const pref = c.postoPref || '';
+  return `<div class="campo" id="${campoId}"><label class="rot" for="${id}Sel">Posto</label>
+    <select id="${id}Sel"><option value="">Escolha o posto</option>${aut.map(x => `<option value="${esc(x.nome)}"${x.nome === pref ? ' selected' : ''}>${esc(x.nome)}${x.cidade ? ' · ' + esc(x.cidade) : ''}${x.nome === pref ? ' ★' : ''}</option>`).join('')}<option value="__outro">Outro posto…</option></select>
+    <input type="text" id="${id}" value="${esc(pref)}" placeholder="Nome do posto e cidade" autocomplete="off" hidden style="margin-top:8px">
+    ${etiqueta ? `<p class="ajuda" id="${id}Aviso" hidden>🏷 Posto fora da lista de autorizados: o lançamento vai com a etiqueta "Posto não autorizado" para o conferente validar.</p>` : ''}</div>`;
+}
+function ligarPosto(m, id){
+  const sel = $('#' + id + 'Sel', m), inp = $('#' + id, m), aviso = $('#' + id + 'Aviso', m);
+  if(!sel) return;
+  sel.onchange = () => {
+    const outro = sel.value === '__outro';
+    inp.hidden = !outro; if(aviso) aviso.hidden = !outro;
+    inp.value = outro ? '' : sel.value; if(outro) inp.focus();
+  };
+}
+
 function dadosAbast(a, comFotos){
   const rows = [['Motorista', a.motorista], ['Data', fmtData(a.lancadoEm)], ['Veículo', `${a.veiculo}${a.placa ? ' · ' + a.placa : ''}`], ['Fazenda', a.fazenda || '—'],
     [nomeMed(a.tipoLeitura), a.leitura != null ? `${fmtN(a.leitura)} ${unMed(a.tipoLeitura)}` : 'Só foto']];
@@ -554,6 +576,8 @@ function dadosAbast(a, comFotos){
   else if(a.confiancaFoto) rows.push(['Lido da foto (IA)', a.confiancaFoto]);
   if(a.leituraConferida != null && a.leituraConferida !== a.leitura) rows.push([`${nomeMed(a.tipoLeitura)} conferido`, `${fmtN(a.leituraConferida)} ${unMed(a.tipoLeitura)}`]);
   rows.push(['Posto', a.posto], ['Combustível', a.combustivel], ['Litros', fmtL(a.litros) + ' L'], ['Valor', fmtR(a.valor)]);
+  if(a.litrosCupom != null || a.valorCupom != null || a.leituraCupom) rows.push(['Lido do cupom (IA)',
+    [a.litrosCupom != null ? fmtL(a.litrosCupom) + ' L' : '', a.valorCupom != null ? fmtR(a.valorCupom) : '', a.combustivelCupom, a.postoCupom, a.leituraCupom].filter(Boolean).join(' · ')]);
   if(a.valor && a.litros) rows.push(['Preço por litro', fmtR(a.valor / a.litros)]);
   if(a.obs) rows.push(['Observação', a.obs]);
   if(a.aprovacao && !a.fila) rows.push(['Aprovação', a.aprovacao === 'Recusado' ? `Recusado por ${a.aprovadoPor}${a.motivoRecusa ? ': ' + a.motivoRecusa : ''}` : a.aprovadoPor && a.aprovadoPor !== 'Automática' ? `${a.aprovacao} · ${a.aprovadoPor}` : a.aprovacao]);
@@ -844,8 +868,7 @@ VIEWS['m-novo'] = {
           <label class="foto" id="lbFotoPainel" for="fotoPainel">${ICON.camera}<span>Foto do painel</span></label></div>
         <input type="file" id="fotoPainel" accept="image/*" capture="environment" hidden>
         <p class="ajuda">Digite o número do painel ou tire a foto. Pode fazer os dois.</p></div></fieldset>
-      <div class="campo" id="cPosto"><label class="rot" for="posto">Posto</label><input type="text" id="posto" list="lPostos" placeholder="Nome do posto e cidade" autocomplete="off">
-        <datalist id="lPostos">${c.postos.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      ${htmlPosto('posto', 'cPosto', true)}
       <div class="campo"><label class="rot" for="comb">Combustível</label><select id="comb">${c.combustiveis.map(x => `<option>${esc(x)}</option>`).join('')}</select>
         <p class="ajuda" id="dicaComb" hidden></p></div>
       <div class="grid2">
@@ -862,6 +885,7 @@ VIEWS['m-novo'] = {
   },
   bind(m){
     const f = $('#fAb', m), c = S.sessao.cadastros;
+    ligarPosto(m, 'posto');
     /* Busca do veículo: placa, número FT ou modelo, em qualquer ordem e sem acento */
     const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
     const indiceDe = lst => lst.map(v => { const t = norm(`${v.placa} ${v.veiculo} ${v.fazenda}`); return {v, t, junto: t.replace(/ /g, '')}; });
@@ -1024,8 +1048,7 @@ VIEWS['r-novo'] = {
         <div class="campo" id="cSc" hidden><label class="rot" for="tSc">N° SC</label><input type="text" id="tSc" autocomplete="off" class="num" placeholder="Ex.: 4521"></div>
         <div class="campo" id="cLim"><label class="rot" for="tLim">Qtde (litros)</label><input type="text" id="tLim" inputmode="decimal" class="num" placeholder="Ex.: 150"></div>
       </div>
-      <div class="campo" id="cTPosto"><label class="rot" for="tPosto">Posto</label><input type="text" id="tPosto" list="lPostos2" autocomplete="off" placeholder="Nome do posto e cidade">
-        <datalist id="lPostos2">${c.postos.map(p => `<option value="${esc(p)}">`).join('')}</datalist></div>
+      ${htmlPosto('tPosto', 'cTPosto', false)}
       <div class="campo"><label class="rot" for="tComb">Combustível</label><select id="tComb">${c.combustiveis.map(x => `<option>${esc(x)}</option>`).join('')}</select></div>
       <div class="campo" id="cVal"><label class="rot" for="tVal">Válida até</label><input type="date" id="tVal" value="${hojeISO()}" min="${hojeISO()}"></div>
       <div class="campo" id="cJust"><label class="rot" for="tJust">Justificativa</label><textarea id="tJust" placeholder="Por que esta pessoa vai abastecer por conta da empresa? Ex.: frete de calcário para a Fazenda Chapecó"></textarea></div>
@@ -1034,6 +1057,7 @@ VIEWS['r-novo'] = {
   },
   bind(m){
     const f = $('#fAt', m); let tipo = 'veiculo';
+    ligarPosto(m, 'tPosto');
     // Galão: sem placa; CPF + fazenda lado a lado; N° SC; combustível já em Gasolina (pode trocar)
     const ajustarTipo = () => {
       const g = tipo === 'galoes', grid = $('#cCpf', m).parentElement;
@@ -1241,8 +1265,8 @@ function blocoLeitura(L){
   let txt, btn = '';
   if(L.lendo) txt = '📷 <b>Lendo as fotos agora…</b> Toque em Atualizar daqui a pouco.';
   else if(L.pedido) txt = `📷 Leitura pedida por ${esc(L.pedido.por)} ${fmtQuando(L.pedido.em)}. O robô começa em até 3 minutos.`;
-  else if(L.fotosEsperando){ txt = `📷 <b>${L.fotosEsperando}</b> foto(s) do painel esperando leitura. Leitura automática às 20h.`; btn = '<button class="btn btn-pri btn-mini" id="lerFotos">Ler fotos agora</button>'; }
-  else txt = '📷 Todas as fotos do painel já foram lidas.';
+  else if(L.fotosEsperando){ txt = `📷 <b>${L.fotosEsperando}</b> foto(s) (painel e cupom) esperando leitura. Leitura automática às 20h.`; btn = '<button class="btn btn-pri btn-mini" id="lerFotos">Ler fotos agora</button>'; }
+  else txt = '📷 Todas as fotos (painel e cupom) já foram lidas.';
   const ult = L.fim ? `<div style="font-size:13px;color:var(--muted);margin-top:4px">Última leitura ${fmtQuando(L.fim)}${L.erro ? ` · <span style="color:var(--bad)">falhou: ${esc(L.erro)}</span>` : ''}</div>` : '';
   return `<div class="resumo" style="margin-top:8px"><div>${txt}${ult}</div>${btn}</div>`;
 }
@@ -1301,7 +1325,8 @@ function tabelaAbast(D, lst, pendente){
       <td><button class="link num" data-go="c-det" data-p="${esc(a.numero)}">${esc(a.numero)}</button></td>
       <td class="nw">${dataCurta(a.lancadoEm)}</td><td>${esc(a.motorista)}</td>
       <td><b>${esc(a.placa || '—')}</b><div class="sub">${esc(a.veiculo)}</div></td><td>${esc(a.fazenda || '—')}</td><td>${esc(a.combustivel)}</td>
-      <td class="r">${fmtL(a.litros)}</td><td class="r nw">${fmtR(a.valor)}</td>
+      <td class="r">${fmtL(a.litros)}</td><td class="r${a.litrosCupom != null && Math.abs(a.litrosCupom - a.litros) > 0.5 ? ' dif' : ''}" title="${esc(a.leituraCupom)}">${a.litrosCupom != null ? fmtL(a.litrosCupom) : a.fotoCupom && !a.leituraCupom ? '<span class="sub">não lido</span>' : '—'}</td>
+      <td class="r nw">${fmtR(a.valor)}</td><td class="r nw${a.valorCupom != null && (a.valor == null || Math.abs(a.valorCupom - a.valor) > 1) ? ' dif' : ''}">${a.valorCupom != null ? fmtR(a.valorCupom) : '—'}</td>
       <td class="r">${ant != null ? fmtN(ant) : '—'}</td><td class="r${difFoto ? ' dif' : ''}">${a.leitura != null ? fmtN(a.leitura) : '—'}</td>
       <td class="r${difFoto ? ' dif' : ''}" title="${esc(a.confiancaFoto)}">${a.leituraFoto != null ? fmtN(a.leituraFoto) : a.fotoPainel ? '<span class="sub">não lida</span>' : '—'}</td>
       <td class="r${rod != null && rod <= 0 ? ' dif' : ''}">${rod != null ? fmtN(rod) + ' ' + un : '—'}</td><td class="r">${kml != null ? fmtL(kml) : '—'}</td>
@@ -1312,8 +1337,8 @@ function tabelaAbast(D, lst, pendente){
       : `<td class="r">${a.leituraConferida != null ? fmtN(a.leituraConferida) : '—'}</td>`}</tr>`;
   }).join('');
   return `<div class="mesa-tab"><table class="tab">
-    <thead><tr>${pendente ? '<th class="c"><input type="checkbox" id="selTodos" aria-label="Selecionar todos sem alerta"></th>' : ''}${th('num', 'Nº')}${th('data', 'Data')}${th('mot', 'Motorista')}${th('vei', 'Placa / veículo')}${th('faz', 'Fazenda')}${th('', 'Comb.')}${th('litros', 'Litros', 'r')}${th('valor', 'Valor', 'r')}${th('', 'Km anterior', 'r')}${th('', 'Km digitado', 'r')}${th('', 'Km da foto', 'r')}${th('', 'Rodado', 'r')}${th('kml', 'Km/L', 'r')}${th('alerta', pendente ? 'Alerta' : 'Conferência')}${th('', 'Fotos')}${pendente ? th('', 'Km conferido') + th('', '') : th('', 'Km conferido', 'r')}</tr></thead>
-    <tbody>${linhas || `<tr><td colspan="19" class="vazio">${pendente ? 'Tudo conferido por aqui.' : 'Nada aqui.'}</td></tr>`}</tbody></table></div>`;
+    <thead><tr>${pendente ? '<th class="c"><input type="checkbox" id="selTodos" aria-label="Selecionar todos sem alerta"></th>' : ''}${th('num', 'Nº')}${th('data', 'Data')}${th('mot', 'Motorista')}${th('vei', 'Placa / veículo')}${th('faz', 'Fazenda')}${th('', 'Comb.')}${th('litros', 'Litros', 'r')}${th('', 'Litros cupom', 'r')}${th('valor', 'Valor', 'r')}${th('', 'Valor cupom', 'r')}${th('', 'Km anterior', 'r')}${th('', 'Km digitado', 'r')}${th('', 'Km da foto', 'r')}${th('', 'Rodado', 'r')}${th('kml', 'Km/L', 'r')}${th('alerta', pendente ? 'Alerta' : 'Conferência')}${th('', 'Fotos')}${pendente ? th('', 'Km conferido') + th('', '') : th('', 'Km conferido', 'r')}</tr></thead>
+    <tbody>${linhas || `<tr><td colspan="21" class="vazio">${pendente ? 'Tudo conferido por aqui.' : 'Nada aqui.'}</td></tr>`}</tbody></table></div>`;
 }
 
 function ligarTabelaAbast(m, D){
